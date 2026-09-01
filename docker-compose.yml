@@ -1,0 +1,16 @@
+version: '3.8'
+services:
+  postgres-db:
+    image: postgres:16-alpine
+    container_name: studypet_postgres
+    environment:
+      POSTGRES_DB: studypet_db
+      POSTGRES_USER: studypet_user
+      POSTGRES_PASSWORD: studypet_password
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+volumes:
+  pgdata:
