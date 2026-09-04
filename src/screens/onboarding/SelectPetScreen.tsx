@@ -17,6 +17,7 @@ import { PET_OPTIONS, PetOption } from '../../constants/pets';
 import { petApi } from '../../api/petApi';
 import { useAuthStore } from '../../store/useAuthStore';
 import { PetType } from '../../types';
+import { usePetStore } from '../../store/usePetStore';
 
 interface Props {
   navigation: any;
@@ -31,7 +32,7 @@ export const SelectPetScreen: React.FC<Props> = ({ navigation }) => {
 
   const selectedPetMeta = PET_OPTIONS.find((p) => p.type === selectedType);
 
-  const handleConfirm = async () => {
+  const handleConfirm = () => {
     if (!petName.trim()) {
       Alert.alert('Eksik Bilgi', 'Lütfen evcil hayvanınıza bir isim verin.');
       return;
@@ -44,17 +45,27 @@ export const SelectPetScreen: React.FC<Props> = ({ navigation }) => {
 
     try {
       setLoading(true);
-      await petApi.createPet({
-        type: selectedType,
-        name: petName.trim(),
+
+      // 1. Seçilen hayvanı ve ismi doğrudan Zustand'a yaz (Backend beklemeden)
+      usePetStore.setState({
+        pet: {
+          id: 1,
+          type: selectedType,
+          name: petName.trim(),
+          ownerUsername: useAuthStore.getState().username || 'Öğrenci',
+          equippedHat: undefined,
+          equippedGlasses: undefined,
+          equippedAccessory: undefined,
+        },
       });
 
+      // 2. Auth bayrağını güncelle
       setPetSelected(true);
-      // Bir sonraki adım olan "Oda Yarat / Koda Katıl" seçimine yönlendirilir
-      navigation.replace('RoomChoiceScreen');
-    } catch (error: any) {
-      const msg = error.response?.data?.message || 'Karakter kaydedilirken bir sorun oluştu.';
-      Alert.alert('Hata', msg);
+
+      // 3. Doğrudan Dashboard'a yönlendir
+      navigation.navigate('DashboardScreen');
+    } catch (err) {
+      console.log('Hata:', err);
     } finally {
       setLoading(false);
     }
@@ -144,6 +155,7 @@ export const SelectPetScreen: React.FC<Props> = ({ navigation }) => {
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
+  
 };
 
 const styles = StyleSheet.create({

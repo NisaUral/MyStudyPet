@@ -1,6 +1,8 @@
 package com.studyquest.controller;
 
 import com.studyquest.dto.request.JoinRoomRequest;
+import com.studyquest.dto.request.SaveRoomLayoutRequest;
+import com.studyquest.dto.response.RoomDetailResponse;
 import com.studyquest.dto.response.RoomResponse;
 import com.studyquest.entity.User;
 import com.studyquest.service.RoomService;
@@ -31,4 +33,21 @@ public class RoomController {
             @AuthenticationPrincipal User user) {
         return ResponseEntity.ok(roomService.joinRoomByCode(request.getRoomCode(), user.getId()));
     }
+    // RoomController.java içerisine eklenecek endpoint'ler:
+
+// PUT /api/rooms/layout -> Odanın mobilya düzenini ve duvar kağıdını kaydet
+@PutMapping("/layout")
+public ResponseEntity<RoomDetailResponse> saveLayout(
+        @AuthenticationPrincipal User user,
+        @Valid @RequestBody SaveRoomLayoutRequest request) {
+    return ResponseEntity.ok(roomService.saveRoomLayout(user.getId(), request));
+}
+
+// GET /api/rooms/detail/{roomCode} -> Odanın tüm eşyaları ve detaylarını getir
+@GetMapping("/detail/{roomCode}")
+public ResponseEntity<RoomDetailResponse> getRoomDetail(
+        @PathVariable String roomCode,
+        @AuthenticationPrincipal User user) {
+    return ResponseEntity.ok(roomService.getRoomByCode(roomCode, user.getId()));
+}
 }

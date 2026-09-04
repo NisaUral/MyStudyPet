@@ -1,61 +1,147 @@
-import React from 'react';
-import { View, Text, StyleSheet } from 'react-native';
-import { PET_OPTIONS } from '../constants/pets';
-import { ACCESSORY_CATALOG } from '../constants/accessories';
+import React, { useEffect, useRef } from 'react';
+import { View, Image, StyleSheet, Animated, Easing } from 'react-native';
 import { PetType } from '../types';
+import { PET_ASSETS } from '../constants/petAssets';
 
-interface PetAvatarProps {
+interface Props {
   type: PetType;
   size?: number;
+  isStudying?: boolean;
   equippedHat?: string;
   equippedGlasses?: string;
   equippedAccessory?: string;
 }
 
-export const PetAvatar: React.FC<PetAvatarProps> = ({
+export const PetAvatar: React.FC<Props> = ({
   type,
-  size = 120,
+  size = 80,
+  isStudying = false,
   equippedHat,
   equippedGlasses,
-  equippedAccessory,
 }) => {
-  const petMeta = PET_OPTIONS.find((p) => p.type === type);
-  const hatItem = ACCESSORY_CATALOG.find((a) => a.id === equippedHat && a.id !== 'hat_none');
-  const glassesItem = ACCESSORY_CATALOG.find((a) => a.id === equippedGlasses && a.id !== 'glasses_none');
-  const accItem = ACCESSORY_CATALOG.find((a) => a.id === equippedAccessory && a.id !== 'acc_none');
+  // Animasyon Değerleri
+  const translateY = useRef(new Animated.Value(0)).current;
+  const rotateVal = useRef(new Animated.Value(0)).current;
+  const scaleY = useRef(new Animated.Value(1)).current;
 
-  const baseFontSize = size * 0.55;
-  const hatFontSize = size * 0.32;
-  const glassesFontSize = size * 0.28;
-  const accFontSize = size * 0.28;
+  const meta = PET_ASSETS[type] || PET_ASSETS.CAT;
+
+  useEffect(() => {
+    let animLoop: Animated.CompositeAnimation;
+
+    if (isStudying) {
+      // 1. Çalışma Animasyonu: Not alma / düşünme temposunda hafif ritmik kafa sallama
+      animLoop = Animated.loop(
+        Animated.sequence([
+          Animated.timing(rotateVal, {
+            toValue: 1, // Sağa hafif eğil
+            duration: 900,
+            easing: Easing.inOut(Easing.quad),
+            useNativeDriver: true,
+          }),
+          Animated.timing(rotateVal, {
+            toValue: -1, // Sola hafif eğil
+            duration: 900,
+            easing: Easing.inOut(Easing.quad),
+            useNativeDriver: true,
+          }),
+        ])
+      );
+    } else {
+      // 2. Bekleme (Idle) Animasyonu: Yumuşak nefes alma ve hafif yükselip alçalma
+      rotateVal.setValue(0);
+      animLoop = Animated.loop(
+        Animated.sequence([
+          Animated.parallel([
+            Animated.timing(translateY, {
+              toValue: -4,
+              duration: 1400,
+              easing: Easing.inOut(Easing.sin),
+              useNativeDriver: true,
+            }),
+            Animated.timing(scaleY, {
+              toValue: 1.03,
+              duration: 1400,
+              easing: Easing.inOut(Easing.sin),
+              useNativeDriver: true,
+            }),
+          ]),
+          Animated.parallel([
+            Animated.timing(translateY, {
+              toValue: 0,
+              duration: 1400,
+              easing: Easing.inOut(Easing.sin),
+              useNativeDriver: true,
+            }),
+            Animated.timing(scaleY, {
+              toValue: 1,
+              duration: 1400,
+              easing: Easing.inOut(Easing.sin),
+              useNativeDriver: true,
+            }),
+          ]),
+        ])
+      );
+    }
+
+    animLoop.start();
+
+    return () => animLoop.stop();
+  }, [isStudying]);
+
+  // Rotasyon interpolasyonu (-3 derece ile +3 derece arası tatlı bir salınım)
+  const spin = rotateVal.interpolate({
+    inputRange: [-1, 0, 1],
+    outputRange: ['-3deg', '0deg', '3deg'],
+  });
 
   return (
     <View style={[styles.wrapper, { width: size, height: size }]}>
-      {/* Katman 1: Ana Gövde */}
-      <Text style={[styles.layer, { fontSize: baseFontSize, zIndex: 1 }]}>
-        {petMeta?.emoji || '🐱'}
-      </Text>
+      <Animated.View
+        style={[
+          styles.spriteContainer,
+          {
+            transform: [{ translateY }, { rotate: spin }, { scaleY }],
+          },
+        ]}
+      >
+        {/* Karakterin Kendisi */}
+        <Image
+          source={meta.source}
+          style={{ width: size, height: size }}
+          resizeMode="contain"
+        />
 
-      {/* Katman 2: Şapka (Baş üstü) */}
-      {hatItem && (
-        <View style={[styles.hatWrapper, { top: size * 0.04, zIndex: 3 }]}>
-          <Text style={{ fontSize: hatFontSize }}>{hatItem.emoji}</Text>
-        </View>
-      )}
+        {/* Aksesuar Katmanı: Şapka */}
+        {equippedHat && (
+          <View
+            style={[
+              styles.accessorySlot,
+              {
+                top: meta.hatOffset.top,
+                left: meta.hatOffset.left,
+              },
+            ]}
+          >
+            {/* Şapka ikonu/görseli buraya yerleşir */}
+          </View>
+        )}
 
-      {/* Katman 3: Gözlük (Yüz seviyesi) */}
-      {glassesItem && (
-        <View style={[styles.glassesWrapper, { top: size * 0.26, zIndex: 2 }]}>
-          <Text style={{ fontSize: glassesFontSize }}>{glassesItem.emoji}</Text>
-        </View>
-      )}
-
-      {/* Katman 4: Boyun/Göğüs Aksesuarı */}
-      {accItem && (
-        <View style={[styles.accessoryWrapper, { bottom: size * 0.08, zIndex: 4 }]}>
-          <Text style={{ fontSize: accFontSize }}>{accItem.emoji}</Text>
-        </View>
-      )}
+        {/* Aksesuar Katmanı: Gözlük */}
+        {equippedGlasses && (
+          <View
+            style={[
+              styles.accessorySlot,
+              {
+                top: meta.glassesOffset.top,
+                left: meta.glassesOffset.left,
+              },
+            ]}
+          >
+            {/* Gözlük ikonu/görseli buraya yerleşir */}
+          </View>
+        )}
+      </Animated.View>
     </View>
   );
 };
@@ -64,22 +150,14 @@ const styles = StyleSheet.create({
   wrapper: {
     alignItems: 'center',
     justifyContent: 'center',
-    position: 'relative',
   },
-  layer: {
-    position: 'absolute',
-    textAlign: 'center',
+  spriteContainer: {
+    width: '100%',
+    height: '100%',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  hatWrapper: {
+  accessorySlot: {
     position: 'absolute',
-    alignSelf: 'center',
-  },
-  glassesWrapper: {
-    position: 'absolute',
-    alignSelf: 'center',
-  },
-  accessoryWrapper: {
-    position: 'absolute',
-    alignSelf: 'center',
   },
 });
