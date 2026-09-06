@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import {
   View,
   Text,
@@ -20,6 +20,7 @@ import { gridToScreen } from '../../utils/isometric';
 import { useLiveRoomStore } from '../../store/useLiveRoomStore';
 import { LiveRoommatesLayer } from '../../components/room/LiveRoommatesLayer';
 import { RoomStatsOverlay } from '../../components/room/RoomStatsOverlay';
+import { AccessoryMenu } from '../../components/AccessoryMenu';
 
 import { useAuthStore } from '../../store/useAuthStore';
 import { useRoomStore } from '../../store/useRoomStore';
@@ -31,7 +32,7 @@ const { width: SCREEN_WIDTH } = Dimensions.get('window');
 export const StudyRoomScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
   const { roomCode, username } = useAuthStore();
   const { furnitures, loadRoom, isLoading: isRoomLoading } = useRoomStore();
-  const { pet, fetchMyPet } = usePetStore();
+  const { pet, fetchMyPet, updateAccessories, isLoading: isPetLoading } = usePetStore();
   const {
     isFocusModeActive,
     startSession,
@@ -43,15 +44,26 @@ export const StudyRoomScreen: React.FC<{ navigation: any }> = ({ navigation }) =
   const { joinLiveRoom, leaveLiveRoom, broadcastStudyStatus } = useLiveRoomStore();
 
   const [isDurationModalVisible, setDurationModalVisible] = useState(false);
+  const [showWardrobe, setShowWardrobe] = useState(false);
+  const [isSavingAccessories, setIsSavingAccessories] = useState(false);
 
-  // Zemin ve mobilyaların ekranda ortalanması için merkez koordinatlar
+  // Aksesuar ve Renk State'leri
+  const [equippedHat, setEquippedHat] = useState<string>('NONE');
+  const [hatColor, setHatColor] = useState<string>('#6C5CE7');
+
+  const [equippedGlasses, setEquippedGlasses] = useState<string>('NONE');
+  const [glassesColor, setGlassesColor] = useState<string>('#2D3436');
+
+  const [equippedAccessory, setEquippedAccessory] = useState<string>('NONE');
+  const [accessoryColor, setAccessoryColor] = useState<string>('#E74C3C');
+
+  // İlk yükleme kilidi: Kullanıcı seçim yaparken pet güncellemelerinin yerel state'i ezmesini engeller
+  const isInitialLoaded = useRef(false);
+
   const originX = SCREEN_WIDTH / 2;
-  const originY = 90;
-
-  // Pet'in odadaki varsayılan başlangıç konumu (Grid 4, 4)
+  const originY = 80;
   const petScreenPos = gridToScreen(4, 4, originX, originY);
 
-  // Oda ve pet verilerini yükle
   useEffect(() => {
     if (roomCode) {
       loadRoom(roomCode);
@@ -59,7 +71,15 @@ export const StudyRoomScreen: React.FC<{ navigation: any }> = ({ navigation }) =
     fetchMyPet();
   }, [roomCode]);
 
-  // Canlı WebSocket bağlantısı yaşam döngüsü
+  useEffect(() => {
+    if (pet && !isInitialLoaded.current) {
+      if (pet.equippedHat) setEquippedHat(pet.equippedHat);
+      if (pet.equippedGlasses) setEquippedGlasses(pet.equippedGlasses);
+      if (pet.equippedAccessory) setEquippedAccessory(pet.equippedAccessory);
+      isInitialLoaded.current = true;
+    }
+  }, [pet]);
+
   useEffect(() => {
     const activeUsername = username || 'Misafir';
     const petType = pet?.type || 'CAT';
@@ -75,9 +95,9 @@ export const StudyRoomScreen: React.FC<{ navigation: any }> = ({ navigation }) =
     };
   }, [roomCode, username, pet?.type]);
 
-  // Odak seansı başlatıldığında canlı odaya duyur
   const handleStartStudy = async (minutes: number) => {
     try {
+      setShowWardrobe(false);
       await startSession(minutes);
       if (roomCode && pet) {
         broadcastStudyStatus(roomCode, username || 'Misafir', pet.type, true, minutes);
@@ -88,12 +108,30 @@ export const StudyRoomScreen: React.FC<{ navigation: any }> = ({ navigation }) =
     }
   };
 
-  // Seans bittiğinde veya ödül modalı kapandığında mola durumunu bildir
   const handleCloseReward = () => {
     if (roomCode && pet) {
       broadcastStudyStatus(roomCode, username || 'Misafir', pet.type, false);
     }
     closeRewardModal();
+  };
+
+  // Aksesuarları veritabanına kaydetme işlemi
+  const handleSaveAccessories = async () => {
+    setIsSavingAccessories(true);
+    try {
+      await updateAccessories({
+        equippedHat: equippedHat === 'NONE' ? null : equippedHat,
+        equippedGlasses: equippedGlasses === 'NONE' ? null : equippedGlasses,
+        equippedAccessory: equippedAccessory === 'NONE' ? null : equippedAccessory,
+      } as any);
+
+      Alert.alert('Başarılı', 'Kıyafetler kaydedildi.');
+      setShowWardrobe(false);
+    } catch (error: any) {
+      Alert.alert('Hata', 'Kıyafetler kaydedilirken bir hata oluştu.');
+    } finally {
+      setIsSavingAccessories(false);
+    }
   };
 
   if (isRoomLoading) {
@@ -107,7 +145,7 @@ export const StudyRoomScreen: React.FC<{ navigation: any }> = ({ navigation }) =
 
   return (
     <SafeAreaView style={styles.container}>
-      {/* Üst Bilgi Barı: Takvimdeki Oda Kodu & Geri Dön */}
+      {/* Üst Bilgi Barı */}
       <View style={styles.topBar}>
         <TouchableOpacity
           style={styles.backButton}
@@ -119,7 +157,6 @@ export const StudyRoomScreen: React.FC<{ navigation: any }> = ({ navigation }) =
           </Text>
         </TouchableOpacity>
 
-        {/* Duvardaki Takvim / Oda Kodu Panosu */}
         <View style={styles.roomCalendarBadge}>
           <Text style={styles.calendarIcon}>📅</Text>
           <View>
@@ -128,53 +165,89 @@ export const StudyRoomScreen: React.FC<{ navigation: any }> = ({ navigation }) =
           </View>
         </View>
       </View>
-      {/* YENİ: Ortak Çalışma İstatistikleri & Toast Alanı */}
-  <RoomStatsOverlay />
+
+      <RoomStatsOverlay />
 
       {/* 2D İzometrik Oda Alanı */}
       <View style={styles.roomViewport}>
-        {/* 1. Katman: 8x8 Karo Zemin */}
         <IsometricRoomView />
 
-        {/* 2. Katman: Z-Index Sıralı Mobilyalar */}
         <PlacedFurnitureLayer
           furnitures={furnitures}
           originX={originX}
           originY={originY}
         />
 
-        {/* 3. Katman: Canlı Bağlanan Diğer Kullanıcıların Petleri */}
         <LiveRoommatesLayer originX={originX} originY={originY} />
 
-        {/* 4. Katman: Kullanıcının Kendi Peti */}
-        {pet && (
-          <View
-            style={[
-              styles.petPositioner,
-              {
-                left: petScreenPos.x - 40,
-                top: petScreenPos.y - 70,
-                zIndex: 4 + 4 + 50,
-              },
-            ]}
-          >
-            <PetAvatar
-              type={pet.type}
-              size={80}
-              equippedHat={pet.equippedHat}
-              equippedGlasses={pet.equippedGlasses}
-              equippedAccessory={pet.equippedAccessory}
-            />
-            <View style={styles.petNameTag}>
-              <Text style={styles.petNameText}>{pet.name}</Text>
-            </View>
-          </View>
-        )}
+        {/* Katman: Kullanıcının Kendi Peti */}
+{pet && (
+  <View
+    style={[
+      styles.petPositioner,
+      {
+        // 105 boyutundaki petin karo merkezine tam oturması için ofsetler
+        left: petScreenPos.x - 52.5,
+        top: petScreenPos.y - 92,
+        zIndex: 4 + 4 + 50,
+      },
+    ]}
+  >
+    <PetAvatar
+      type={pet.type}
+      size={105} // Büyütülen boyut
+      isStudying={isFocusModeActive}
+      equippedHat={equippedHat}
+      hatColor={hatColor}
+      equippedGlasses={equippedGlasses}
+      glassesColor={glassesColor}
+      equippedAccessory={equippedAccessory}
+      accessoryColor={accessoryColor}
+    />
+    <View style={styles.petNameTag}>
+      <Text style={styles.petNameText}>{pet.name}</Text>
+    </View>
+  </View>
+)}
       </View>
 
-      {/* Alt Kontrol Paneli: Çalışmaya Başla Butonu */}
+      {/* Aksesuar & Gardırop Menüsü */}
+      {!isFocusModeActive && showWardrobe && (
+        <View style={styles.wardrobeContainer}>
+          <AccessoryMenu
+  petType={pet?.type}
+  equippedHat={equippedHat}
+  hatColor={hatColor}
+  equippedGlasses={equippedGlasses}
+  glassesColor={glassesColor}
+  equippedAccessory={equippedAccessory}
+  accessoryColor={accessoryColor}
+  isSaving={isSavingAccessories || isPetLoading}
+  onSelectAccessory={(id, category) => {
+    if (category === 'HAT') setEquippedHat(id);
+    if (category === 'GLASSES') setEquippedGlasses(id);
+    if (category === 'NECK') setEquippedAccessory(id);
+  }}
+  onSelectColor={(color, category) => {
+    if (category === 'HAT') setHatColor(color);
+    if (category === 'GLASSES') setGlassesColor(color);
+    if (category === 'NECK') setAccessoryColor(color);
+  }}
+  onSave={handleSaveAccessories}
+/>
+        </View>
+      )}
+
+      {/* Alt Kontrol Paneli */}
       {!isFocusModeActive && (
         <View style={styles.bottomBar}>
+          <TouchableOpacity
+            style={styles.wardrobeToggleBtn}
+            onPress={() => setShowWardrobe(!showWardrobe)}
+          >
+            <Text style={styles.btnEmoji}>{showWardrobe ? '✖' : '🎀'}</Text>
+          </TouchableOpacity>
+
           <TouchableOpacity
             style={styles.startStudyButton}
             onPress={() => setDurationModalVisible(true)}
@@ -185,17 +258,14 @@ export const StudyRoomScreen: React.FC<{ navigation: any }> = ({ navigation }) =
         </View>
       )}
 
-      {/* Süre Belirleme Modalı */}
       <StudyDurationModal
         visible={isDurationModalVisible}
         onClose={() => setDurationModalVisible(false)}
         onStart={handleStartStudy}
       />
 
-      {/* Odak Modu Perdesi & Geri Sayım Rozeti */}
       <FocusOverlay />
 
-      {/* Ödül Bildirim Modalı */}
       <RewardModal
         visible={isRewardModalVisible}
         earnedCoins={lastReward?.earnedCoins || 0}
@@ -204,8 +274,6 @@ export const StudyRoomScreen: React.FC<{ navigation: any }> = ({ navigation }) =
         onClose={handleCloseReward}
       />
     </SafeAreaView>
-     
-    
   );
 };
 
@@ -292,16 +360,36 @@ const styles = StyleSheet.create({
     color: Theme.colors.white,
     fontWeight: '600',
   },
+  wardrobeContainer: {
+    paddingHorizontal: Theme.spacing.sm,
+    marginBottom: 4,
+  },
   bottomBar: {
-    padding: Theme.spacing.lg,
+    flexDirection: 'row',
+    paddingHorizontal: Theme.spacing.lg,
+    paddingBottom: Theme.spacing.md,
+    gap: 10,
     alignItems: 'center',
   },
+  wardrobeToggleBtn: {
+    width: 52,
+    height: 52,
+    borderRadius: Theme.borderRadius.md,
+    backgroundColor: Theme.colors.surface,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1.5,
+    borderColor: Theme.colors.primary,
+  },
+  btnEmoji: {
+    fontSize: 22,
+  },
   startStudyButton: {
+    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: Theme.colors.primary,
-    width: '100%',
     height: 52,
     borderRadius: Theme.borderRadius.md,
     shadowColor: Theme.colors.primary,

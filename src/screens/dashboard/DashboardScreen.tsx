@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useCallback } from 'react';
 import {
   View,
   Text,
@@ -7,6 +7,7 @@ import {
   SafeAreaView,
   ActivityIndicator,
 } from 'react-native';
+import { useFocusEffect } from '@react-navigation/native';
 import { Theme } from '../../theme';
 import { PetAvatar } from '../../components/PetAvatar';
 import { useAuthStore } from '../../store/useAuthStore';
@@ -20,9 +21,12 @@ export const DashboardScreen: React.FC<Props> = ({ navigation }) => {
   const { username, coinBalance, roomCode, logout } = useAuthStore();
   const { pet, fetchMyPet, isLoading } = usePetStore();
 
-  useEffect(() => {
-    fetchMyPet();
-  }, []);
+  // Odadan geri dönüldüğünde kuşanılan yeni eşyaların Dashboard'a anında yansıması için
+  useFocusEffect(
+    useCallback(() => {
+      fetchMyPet();
+    }, [])
+  );
 
   return (
     <SafeAreaView style={styles.container}>
@@ -35,7 +39,7 @@ export const DashboardScreen: React.FC<Props> = ({ navigation }) => {
 
         <View style={styles.coinBadge}>
           <Text style={styles.coinIcon}>🪙</Text>
-          <Text style={styles.coinAmount}>{coinBalance}</Text>
+          <Text style={styles.coinAmount}>{coinBalance ?? 0}</Text>
         </View>
       </View>
 
@@ -49,16 +53,13 @@ export const DashboardScreen: React.FC<Props> = ({ navigation }) => {
               type={pet.type}
               size={150}
               equippedHat={pet.equippedHat}
+              hatColor="#6C5CE7"
               equippedGlasses={pet.equippedGlasses}
+              glassesColor="#2D3436"
               equippedAccessory={pet.equippedAccessory}
+              accessoryColor="#E74C3C"
             />
             <Text style={styles.petName}>{pet.name}</Text>
-            <TouchableOpacity
-              style={styles.wardrobeButton}
-              onPress={() => navigation.navigate('WardrobeScreen')}
-            >
-              <Text style={styles.wardrobeButtonText}>👕 Tarzı Değiştir</Text>
-            </TouchableOpacity>
           </View>
         ) : (
           <TouchableOpacity
@@ -151,31 +152,20 @@ const styles = StyleSheet.create({
   petContainer: {
     alignItems: 'center',
     backgroundColor: Theme.colors.surface,
-    padding: Theme.spacing.xl,
+    paddingVertical: Theme.spacing.xl,
+    paddingHorizontal: Theme.spacing.lg,
     borderRadius: Theme.borderRadius.lg,
     width: '80%',
     shadowColor: '#000',
-    shadowOpacity: 0.2,
+    shadowOpacity: 0.1,
     shadowRadius: 10,
-    elevation: 5,
+    elevation: 4,
   },
   petName: {
-    fontSize: 20,
+    fontSize: 22,
     fontWeight: '700',
     color: Theme.colors.textPrimary,
     marginTop: Theme.spacing.md,
-  },
-  wardrobeButton: {
-    marginTop: Theme.spacing.md,
-    backgroundColor: Theme.colors.surfaceLight,
-    paddingHorizontal: Theme.spacing.md,
-    paddingVertical: Theme.spacing.xs,
-    borderRadius: Theme.borderRadius.sm,
-  },
-  wardrobeButtonText: {
-    color: Theme.colors.textPrimary,
-    fontSize: 13,
-    fontWeight: '600',
   },
   selectPetPrompt: {
     padding: Theme.spacing.lg,
