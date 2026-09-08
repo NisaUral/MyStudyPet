@@ -217,12 +217,6 @@ export const CatPet: React.FC<PetProps> = ({
         </Svg>
       </Animated.View>
 
-      {/* 4. KATMAN: Aksesuarlar */}
-      {equippedHat && ACCESSORY_ICONS[equippedHat] && (
-        <View style={[styles.accessoryAbsolute, { top: -size * 0.08, left: size * 0.35 }]}>
-          <Text style={{ fontSize: size * 0.36 }}>{ACCESSORY_ICONS[equippedHat]}</Text>
-        </View>
-      )}
 
       {equippedGlasses && ACCESSORY_ICONS[equippedGlasses] && (
         <View style={[styles.accessoryAbsolute, { top: size * 0.34, left: size * 0.32 }]}>

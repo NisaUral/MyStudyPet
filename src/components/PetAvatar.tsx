@@ -1,7 +1,10 @@
-import React from 'react';
-import { View, StyleSheet } from 'react-native';
+import React, { useEffect, useRef } from 'react';
+import { View, StyleSheet, Animated } from 'react-native';
 import { PetType } from '../types';
+import { PetState } from '../types/petState';
+import { SleepingIndicator } from './pets/SleepingIndicator';
 
+// Hayvan Bileşenleri
 import { FoxPet } from './pets/FoxPet';
 import { FishPet } from './pets/FishPet';
 import { RabbitPet } from './pets/RabbitPet';
@@ -13,6 +16,7 @@ import { ChickenPet } from './pets/ChickenPet';
 import { MonkeyPet } from './pets/MonkeyPet';
 import { UnicornPet } from './pets/UnicornPet';
 
+// Vektör Aksesuarlar
 import {
   WizardHat,
   BaseballCap,
@@ -20,8 +24,6 @@ import {
   Beret,
   NerdGlasses,
   Sunglasses,
-  NerdGlassesProfile,
-  SunglassesProfile,
   Bowtie,
 } from './pets/PetAccessories';
 
@@ -29,6 +31,7 @@ interface Props {
   type: PetType;
   size?: number;
   isStudying?: boolean;
+  petState?: PetState; // 18. Gün Durum Makinesi State'i
   equippedHat?: string;
   hatColor?: string;
   equippedGlasses?: string;
@@ -37,107 +40,128 @@ interface Props {
   accessoryColor?: string;
 }
 
-interface Anatomy {
+interface AnatomyOffset {
   hatTop: number;
   hatScale: number;
-  hatLeftOffset?: number;   // Yana bakanlar için hafif kaydırma
+  hatLeftOffset?: number;
   glassesTop: number;
+  glassesScale: number;
   glassesLeftOffset?: number;
   neckTop: number;
   neckScale: number;
   neckLeftOffset?: number;
-  isProfile: boolean;       // Yan duran hayvan mı?
 }
 
-const ANATOMY_CONFIG: Record<PetType, Anatomy> = {
-  FOX: {
-    hatTop: 0.02,
-    hatScale: 0.90,
-    glassesTop: 0.28,
-    neckTop: 0.50,
-    neckScale: 0.95,
-    isProfile: false,
-  },
+const ANATOMY_CONFIG: Record<PetType, AnatomyOffset> = {
   CAT: {
-    hatTop: 0.03,
-    hatScale: 0.88,
-    glassesTop: 0.29,
-    neckTop: 0.50,
-    neckScale: 0.95,
-    isProfile: false,
+    hatTop: 0.05,
+    hatScale: 0.85,
+    hatLeftOffset: -0.015,
+    glassesTop: 0.31,
+    glassesScale: 0.84,
+    glassesLeftOffset: -0.015,
+    neckTop: 0.58,
+    neckScale: 0.90,
+    neckLeftOffset: -0.015,
   },
   DOG: {
+    hatTop: 0.03,
+    hatScale: 0.86,
+    hatLeftOffset: -0.015,
+    glassesTop: 0.30,
+    glassesScale: 0.85,
+    glassesLeftOffset: -0.015,
+    neckTop: 0.58,
+    neckScale: 0.90,
+    neckLeftOffset: -0.015,
+  },
+  FOX: {
+    hatTop: 0.03,
+    hatScale: 0.86,
+    hatLeftOffset: -0.015,
+    glassesTop: 0.30,
+    glassesScale: 0.85,
+    glassesLeftOffset: -0.015,
+    neckTop: 0.58,
+    neckScale: 0.90,
+    neckLeftOffset: -0.015,
+  },
+  CHICKEN: {
     hatTop: 0.02,
-    hatScale: 0.90,
+    hatScale: 0.84,
+    hatLeftOffset: -0.015,
     glassesTop: 0.29,
-    neckTop: 0.51,
-    neckScale: 0.95,
-    isProfile: false,
+    glassesScale: 0.84,
+    glassesLeftOffset: -0.015,
+    neckTop: 0.59,
+    neckScale: 0.86,
+    neckLeftOffset: -0.015,
+  },
+  CHICK: {
+    hatTop: 0.06,
+    hatScale: 0.82,
+    hatLeftOffset: 0,
+    glassesTop: 0.35,
+    glassesScale: 0.82,
+    glassesLeftOffset: 0,
+    neckTop: 0.55,
+    neckScale: 0.82,
+    neckLeftOffset: 0,
+  },
+  MONKEY: {
+    hatTop: 0.03,
+    hatScale: 0.86,
+    hatLeftOffset: -0.015,
+    glassesTop: 0.28,
+    glassesScale: 0.84,
+    glassesLeftOffset: -0.015,
+    neckTop: 0.57,
+    neckScale: 0.90,
+    neckLeftOffset: -0.015,
   },
   RABBIT: {
     hatTop: 0.12,
-    hatScale: 0.82,
-    glassesTop: 0.35,
-    neckTop: 0.56,
-    neckScale: 0.90,
-    isProfile: false,
+    hatScale: 0.78,
+    hatLeftOffset: 0,
+    glassesTop: 0.33,
+    glassesScale: 0.82,
+    glassesLeftOffset: 0,
+    neckTop: 0.58,
+    neckScale: 0.85,
+    neckLeftOffset: 0,
   },
-  MONKEY: {
-    hatTop: 0.02,
-    hatScale: 0.88,
-    glassesTop: 0.27,
-    neckTop: 0.49,
-    neckScale: 0.95,
-    isProfile: false,
+  // DUCK: 120x120 standardında
+  DUCK: {
+    hatTop: 0.03,
+    hatScale: 0.86,
+    hatLeftOffset: -0.015,
+    glassesTop: 0.29,
+    glassesScale: 0.85,
+    glassesLeftOffset: -0.015,
+    neckTop: 0.58,
+    neckScale: 0.88,
+    neckLeftOffset: -0.015,
   },
   UNICORN: {
-    hatTop: -0.04,       // Boynuzun başladığı alnın üstü
-    hatScale: 0.88,
-    glassesTop: 0.28,    // İki gözün tam üstü
-    neckTop: 0.58,       // Çene altı
-    neckScale: 0.95,
-    isProfile: false,
+    hatTop: 0.01,
+    hatScale: 0.84,
+    hatLeftOffset: 0,
+    glassesTop: 0.31,
+    glassesScale: 0.85,
+    glassesLeftOffset: 0,
+    neckTop: 0.59,
+    neckScale: 0.90,
+    neckLeftOffset: 0,
   },
-
-  // YAN DURANLAR:
-  CHICK: {
-    hatTop: -0.04,
-    hatScale: 0.82,
-    glassesTop: 0.24,
-    glassesLeftOffset: 0.06, // Gözün olduğu tarafa doğru
-    neckTop: 0.45,
-    neckScale: 0.85,
-    isProfile: false,
-  },
-  CHICKEN: {
-    hatTop: -0.06,
-    hatScale: 0.82,
-    glassesTop: 0.24,
-    glassesLeftOffset: 0.06,
-    neckTop: 0.46,
-    neckScale: 0.85,
-    isProfile: false,
-  },
-  DUCK: {
-    hatTop: -0.02,       // Geniş kafa tepesi
-    hatScale: 0.85,
-    glassesTop: 0.24,    // İki gözün tam üstü
-    neckTop: 0.54,       // Gaga altı / göğüs birleşimi
-    neckScale: 0.85,
-    isProfile: false,
-  },
-
-  // FANUSLU BALIK (Fanusun içindeki balığa tam oturan koordinatlar):
+  // Balık: Fanus cam üst kenarı y=28 seviyesine basar
   FISH: {
-    hatTop: 0.20,             // Fanusun içindeki balığın tam kafasına oturur
-    hatScale: 0.65,           // Fanus içine sığacak tatlı boy
-    hatLeftOffset: -0.04,
-    glassesTop: 0.36,         // Balığın tek büyük yan gözüne tam oturur
-    glassesLeftOffset: 0.04,
-    neckTop: 0.50,            // Balığın gövde/kuyruk kıvrımına oturur
-    neckScale: 0.70,
-    neckLeftOffset: -0.05,
-    isProfile: true,
+    hatTop: -0.10,
+    hatScale: 0.86,
+    hatLeftOffset: 0,
+    glassesTop: 0,
+    glassesScale: 0,
+    neckTop: 0,
+    neckScale: 0,
   },
 };
 
@@ -145,6 +169,7 @@ export const PetAvatar: React.FC<Props> = ({
   type,
   size = 105,
   isStudying = false,
+  petState = 'IDLE',
   equippedHat,
   hatColor = '#6C5CE7',
   equippedGlasses,
@@ -152,9 +177,54 @@ export const PetAvatar: React.FC<Props> = ({
   equippedAccessory,
   accessoryColor = '#E74C3C',
 }) => {
+  const isFish = type === 'FISH';
+  const bounceAnim = useRef(new Animated.Value(0)).current;
+
+  // Durum Makinesine (PetState) göre animasyon davranışı
+  useEffect(() => {
+    // Balık fanusu, ders çalışma anı veya uyku anında zıplama durdurulur
+    if (isFish || isStudying || petState === 'STUDYING' || petState === 'SLEEPING') {
+      bounceAnim.setValue(0);
+      return;
+    }
+
+    let toVal = -3.5;
+    let dur = 650;
+
+    // PLAYING: Oyun ve neşe anında iki kat seri ve yüksek yaylanma
+    if (petState === 'PLAYING') {
+      toVal = -7;
+      dur = 380;
+    }
+
+    const animLoop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(bounceAnim, {
+          toValue: toVal,
+          duration: dur,
+          useNativeDriver: true,
+        }),
+        Animated.timing(bounceAnim, {
+          toValue: 0,
+          duration: dur,
+          useNativeDriver: true,
+        }),
+      ])
+    );
+
+    animLoop.start();
+    return () => animLoop.stop();
+  }, [isStudying, isFish, petState]);
+
   const config = ANATOMY_CONFIG[type] || ANATOMY_CONFIG.FOX;
+
   const hatSize = size * config.hatScale;
+  const glassesSize = size * config.glassesScale;
   const neckSize = size * config.neckScale;
+
+  // Büyücü şapkası külah yapısına özel mikro ofset
+  const isWizardHat = equippedHat === 'WIZARD_HAT';
+  const computedHatTop = size * (config.hatTop + (isWizardHat ? -0.04 : 0));
 
   const renderHat = () => {
     switch (equippedHat) {
@@ -167,24 +237,16 @@ export const PetAvatar: React.FC<Props> = ({
   };
 
   const renderGlasses = () => {
-    if (config.isProfile) {
-      // Yan duranlar için profil gözlüğü
-      switch (equippedGlasses) {
-        case 'NERD_GLASSES': return <NerdGlassesProfile size={size * 0.75} color={glassesColor} />;
-        case 'SUNGLASSES': return <SunglassesProfile size={size * 0.75} color={glassesColor} />;
-        default: return null;
-      }
-    } else {
-      // Düz duranlar için çift camlı gözlük
-      switch (equippedGlasses) {
-        case 'NERD_GLASSES': return <NerdGlasses size={size * 0.90} color={glassesColor} />;
-        case 'SUNGLASSES': return <Sunglasses size={size * 0.90} color={glassesColor} />;
-        default: return null;
-      }
+    if (isFish) return null;
+    switch (equippedGlasses) {
+      case 'NERD_GLASSES': return <NerdGlasses size={glassesSize} color={glassesColor} />;
+      case 'SUNGLASSES': return <Sunglasses size={glassesSize} color={glassesColor} />;
+      default: return null;
     }
   };
 
   const renderNeck = () => {
+    if (isFish) return null;
     switch (equippedAccessory) {
       case 'BOWTIE': return <Bowtie size={neckSize} color={accessoryColor} />;
       default: return null;
@@ -192,7 +254,10 @@ export const PetAvatar: React.FC<Props> = ({
   };
 
   const renderPetBody = () => {
-    const commonProps = { size, isStudying };
+    // Uyku modunda da gözlerin kapalı/sakin durması için isStudying bayrağı iç katmana iletilir
+    const isResting = isStudying || petState === 'SLEEPING' || petState === 'STUDYING';
+    const commonProps = { size, isStudying: isResting };
+
     switch (type) {
       case 'FOX': return <FoxPet {...commonProps} />;
       case 'FISH': return <FishPet {...commonProps} />;
@@ -209,18 +274,39 @@ export const PetAvatar: React.FC<Props> = ({
   };
 
   return (
-    <View style={[styles.avatarWrapper, { width: size, height: size }]}>
-      {/* 1. Hayvan / Fanus */}
+    <Animated.View
+      style={[
+        styles.avatarWrapper,
+        {
+          width: size,
+          height: size,
+          transform: [
+            {
+              translateY:
+                isFish || isStudying || petState === 'SLEEPING' ? 0 : bounceAnim,
+            },
+            // Uyku modunda pet başını hafif yana yatırır (balık hariç)
+            {
+              rotate: petState === 'SLEEPING' && !isFish ? '3deg' : '0deg',
+            },
+          ],
+        },
+      ]}
+    >
+      {/* 0. Katman: Uyku Göstergesi (Zzz Baloncuğu) */}
+      {petState === 'SLEEPING' && !isFish && <SleepingIndicator />}
+
+      {/* 1. Katman: Hayvan / Fanus Gövdesi */}
       {renderPetBody()}
 
-      {/* 2. Şapka */}
+      {/* 2. Katman: Şapka */}
       {equippedHat && equippedHat !== 'NONE' && (
         <View
           pointerEvents="none"
           style={[
             styles.slot,
             {
-              top: size * config.hatTop,
+              top: computedHatTop,
               left: (config.hatLeftOffset || 0) * size,
               zIndex: 998,
             },
@@ -230,8 +316,8 @@ export const PetAvatar: React.FC<Props> = ({
         </View>
       )}
 
-      {/* 3. Gözlük (Yan veya Ön) */}
-      {equippedGlasses && equippedGlasses !== 'NONE' && (
+      {/* 3. Katman: Gözlük (Balık hariç) */}
+      {!isFish && equippedGlasses && equippedGlasses !== 'NONE' && (
         <View
           pointerEvents="none"
           style={[
@@ -247,8 +333,8 @@ export const PetAvatar: React.FC<Props> = ({
         </View>
       )}
 
-      {/* 4. Papyon */}
-      {equippedAccessory && equippedAccessory !== 'NONE' && (
+      {/* 4. Katman: Papyon (Balık hariç) */}
+      {!isFish && equippedAccessory && equippedAccessory !== 'NONE' && (
         <View
           pointerEvents="none"
           style={[
@@ -263,7 +349,7 @@ export const PetAvatar: React.FC<Props> = ({
           {renderNeck()}
         </View>
       )}
-    </View>
+    </Animated.View>
   );
 };
 

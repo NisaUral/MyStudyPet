@@ -1,82 +1,91 @@
-import { Client, IMessage } from '@stomp/stompjs';
-import 'text-encoding';
-import { RoomPresenceMessage } from '../types/socket';
-
-// Emülatör için 10.0.2.2, Gerçek cihaz/Tunnel için bilgisayarınızın yerel IP'si veya backend adresi
-const WS_URL = 'ws://10.0.2.2:8080/ws-study';
+import { Client, StompSubscription } from '@stomp/stompjs';
+import { RoomPresenceMessage, DirectMessage } from '../types/socket';
 
 class SocketService {
-  private client: Client | null = null;
-  private currentSubscription: any = null;
+  // 1. stompClient alanını açıkça tanımlıyoruz
+  private stompClient: Client | null = null;
+  private roomSubscription: StompSubscription | null = null;
+  private dmSubscription: StompSubscription | null = null;
 
   connect(
     roomCode: string,
-    onMessageReceived: (message: RoomPresenceMessage) => void,
-    onConnected?: () => void
+    username: string,
+    onPresenceReceived: (msg: RoomPresenceMessage) => void,
+    onDirectMessageReceived: (dm: DirectMessage) => void,
+    onConnectedCallback?: () => void
   ) {
-    // Varsa eski bağlantıyı temizle
-    this.disconnect();
-
-    this.client = new Client({
-      brokerURL: WS_URL,
+    // Projende SockJS veya ws URL'in neredeyse onu kullanıyorsun
+    this.stompClient = new Client({
+      brokerURL: 'ws://10.0.2.2:8080/ws-room', // veya backend websocket adresin
       reconnectDelay: 5000,
       heartbeatIncoming: 4000,
       heartbeatOutgoing: 4000,
-      forceBinaryWSFrames: true,
-      appendMissingNULLonIncoming: true,
-      debug: (str) => {
-        // Geliştirme aşamasında soket trafiğini izlemek için
-        // console.log('[STOMP]:', str);
-      },
       onConnect: () => {
-        console.log(`[STOMP] Bağlantı başarılı. Odaya abone olunuyor: ${roomCode}`);
-
-        // Odanın yayınına abone ol
-        this.currentSubscription = this.client?.subscribe(
+        // 1. Genel Oda Kanalına Abone Ol
+        this.roomSubscription = this.stompClient?.subscribe(
           `/topic/room/${roomCode}`,
-          (message: IMessage) => {
-            if (message.body) {
-              const parsed: RoomPresenceMessage = JSON.parse(message.body);
-              onMessageReceived(parsed);
-            }
+          (message) => {
+            const parsed: RoomPresenceMessage = JSON.parse(message.body);
+            onPresenceReceived(parsed);
           }
-        );
+        ) || null;
 
-        if (onConnected) {
-          onConnected();
+        // 2. Kullanıcıya Özel Direkt Mesaj Kanalına Abone Ol
+        this.dmSubscription = this.stompClient?.subscribe(
+          `/topic/room/${roomCode}/private/${username}`,
+          (message) => {
+            const dm: DirectMessage = JSON.parse(message.body);
+            onDirectMessageReceived(dm);
+          }
+        ) || null;
+
+        if (onConnectedCallback) {
+          onConnectedCallback();
         }
       },
       onStompError: (frame) => {
-        console.error('[STOMP] Protokol Hatası:', frame.headers['message']);
-      },
-      onWebSocketClose: () => {
-        console.log('[STOMP] Soket bağlantısı kapandı.');
+        console.error('STOMP Hatası:', frame.headers['message']);
       },
     });
 
-    this.client.activate();
+    this.stompClient.activate();
   }
 
-  // Odaya aktivite mesajı yolla (JOIN, LEAVE, START_STUDY vb.)
-  sendActivity(roomCode: string, payload: Omit<RoomPresenceMessage, 'timestamp' | 'roomCode'>) {
-    if (this.client && this.client.connected) {
-      this.client.publish({
+  // Standart Oda Aktivitesi Gönderimi (JOIN, LEAVE, START_STUDY vb.)
+  sendActivity(roomCode: string, payload: any) {
+    if (this.stompClient && this.stompClient.connected) {
+      this.stompClient.publish({
         destination: `/app/room/${roomCode}/activity`,
         body: JSON.stringify(payload),
       });
-    } else {
-      console.warn('[STOMP] Mesaj gönderilemedi, soket bağlı değil.');
+    }
+  }
+
+  // 19. Gün: Bireysel Mesaj Gönderimi
+  sendDirectMessage(
+    roomCode: string,
+    payload: { senderUsername: string; targetUsername: string; content: string }
+  ) {
+    if (this.stompClient && this.stompClient.connected) {
+      this.stompClient.publish({
+        destination: `/app/room/${roomCode}/direct-message`,
+        body: JSON.stringify(payload),
+      });
     }
   }
 
   disconnect() {
-    if (this.currentSubscription) {
-      this.currentSubscription.unsubscribe();
-      this.currentSubscription = null;
+    if (this.roomSubscription) {
+      this.roomSubscription.unsubscribe();
+      this.roomSubscription = null;
     }
-    if (this.client) {
-      this.client.deactivate();
-      this.client = null;
+    if (this.dmSubscription) {
+      this.dmSubscription.unsubscribe();
+      this.dmSubscription = null;
+    }
+    if (this.stompClient) {
+      this.stompClient.deactivate();
+      this.stompClient = null;
     }
   }
 }

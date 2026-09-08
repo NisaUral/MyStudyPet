@@ -6,13 +6,17 @@ export interface AccessoryProps {
   color?: string;
 }
 
-// 1. ŞAPKALAR
+// 1. ŞAPKALAR (Tüm şapkaların taban çizgisi viewBox y=32-34 seviyesinde eşitlendi)
 export const WizardHat: React.FC<AccessoryProps> = ({ size, color = '#6C5CE7' }) => (
-  <Svg width={size * 0.52} height={size * 0.52} viewBox="0 0 50 50">
-    <Ellipse cx="25" cy="45" rx="23" ry="5" fill="#2D3436" opacity={0.75} />
-    <Path d="M 25 6 L 10 43 L 40 43 Z" fill={color} />
-    <Path d="M 13 39 Q 25 43 37 39" stroke="#FDCB6E" strokeWidth="3.2" fill="none" />
-    <Circle cx="25" cy="8" r="2.5" fill="#FFEAA7" />
+  <Svg width={size * 0.56} height={size * 0.52} viewBox="0 0 50 45">
+    {/* Şapkanın geniş alt kenarlığı (Kafaya tam basan elips) */}
+    <Ellipse cx="25" cy="35" rx="22" ry="5.5" fill="#2D3436" opacity={0.75} />
+    {/* Sivri külah gövdesi */}
+    <Path d="M 25 5 L 9 34 L 41 34 Z" fill={color} />
+    {/* Altın sarısı kuşak */}
+    <Path d="M 12 31 Q 25 35 38 31" stroke="#FDCB6E" strokeWidth="3" fill="none" />
+    {/* Tepedeki parlak sihirli yıldız/nokta */}
+    <Circle cx="25" cy="6" r="2.5" fill="#FFEAA7" />
   </Svg>
 );
 
@@ -42,7 +46,7 @@ export const Beret: React.FC<AccessoryProps> = ({ size, color = '#E84393' }) => 
   </Svg>
 );
 
-// 2. GÖZLÜKLER (ÖN GÖRÜNÜM - Kedi, Köpek, Tilki, Maymun, Tavşan, Unicorn için)
+// 2. GÖZLÜKLER
 export const NerdGlasses: React.FC<AccessoryProps> = ({ size, color = '#2D3436' }) => (
   <Svg width={size * 0.54} height={size * 0.28} viewBox="0 0 60 30">
     <Circle cx="18" cy="15" r="11" stroke={color} strokeWidth="3" fill="#FFFFFF" fillOpacity={0.25} />
@@ -63,33 +67,9 @@ export const Sunglasses: React.FC<AccessoryProps> = ({ size, color = '#2C3E50' }
   </Svg>
 );
 
-// 3. GÖZLÜKLER (YAN / PROFİL GÖRÜNÜM - Balık, Ördek, Civciv, Tavuk için)
-export const NerdGlassesProfile: React.FC<AccessoryProps> = ({ size, color = '#2D3436' }) => (
-  <Svg width={size * 0.38} height={size * 0.26} viewBox="0 0 40 30">
-    {/* Yandan tek ana yuvarlak cam */}
-    <Circle cx="22" cy="15" r="11" stroke={color} strokeWidth="3" fill="#FFFFFF" fillOpacity={0.3} />
-    {/* Arkadaki ikinci camın ince perspektif kenarı */}
-    <Path d="M 11 12 C 9 14, 9 18, 11 20" stroke={color} strokeWidth="2" fill="none" opacity={0.6} />
-    {/* Kulağa/Başa giden sap */}
-    <Path d="M 33 14 L 39 12" stroke={color} strokeWidth="2.5" strokeLinecap="round" />
-  </Svg>
-);
-
-export const SunglassesProfile: React.FC<AccessoryProps> = ({ size, color = '#2C3E50' }) => (
-  <Svg width={size * 0.38} height={size * 0.26} viewBox="0 0 40 30">
-    {/* Yandan tek güneş gözlüğü camı */}
-    <Path d="M 12 10 L 30 10 L 28 22 C 28 22, 17 24, 13 18 Z" fill={color} />
-    {/* Arkadaki camın ucu */}
-    <Path d="M 7 12 L 11 12 L 10 18 Z" fill={color} opacity={0.6} />
-    {/* Çerçeve sapı */}
-    <Path d="M 30 11 L 38 10" stroke={color} strokeWidth="2.5" strokeLinecap="round" />
-    <Path d="M 16 12 L 21 19" stroke="#FFFFFF" strokeWidth="1.2" strokeLinecap="round" opacity={0.4} />
-  </Svg>
-);
-
-// 4. PAPYON (Net ve gövdeye oturan boyut)
+// 3. PAPYON
 export const Bowtie: React.FC<AccessoryProps> = ({ size, color = '#E74C3C' }) => (
-  <Svg width={size * 0.36} height={size * 0.20} viewBox="0 0 44 24">
+  <Svg width={size * 0.38} height={size * 0.22} viewBox="0 0 44 24">
     <Path d="M 4 4 L 22 12 L 4 20 Z" fill={color} />
     <Path d="M 40 4 L 22 12 L 40 20 Z" fill={color} />
     <Circle cx="22" cy="12" r="4.2" fill={color} />

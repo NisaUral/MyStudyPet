@@ -167,17 +167,22 @@ export const AccessoryMenu: React.FC<Props> = ({
       </View>
 
       {/* Kaydet Butonu */}
-      <TouchableOpacity
-        style={[styles.saveBtn, isSaving && styles.saveBtnDisabled]}
-        onPress={onSave}
-        disabled={isSaving}
-      >
-        {isSaving ? (
-          <ActivityIndicator color="#FFFFFF" size="small" />
-        ) : (
-          <Text style={styles.saveBtnText}>✓ Kıyafetleri Kaydet</Text>
-        )}
-      </TouchableOpacity>
+      {/* 4. Onayla / Kaydet Butonu */}
+<TouchableOpacity
+  activeOpacity={0.8}
+  style={[styles.saveBtn, isSaving && styles.saveBtnDisabled]}
+  onPress={() => {
+    console.log('Kaydet butonuna tıklandı');
+    onSave();
+  }}
+  disabled={isSaving}
+>
+  {isSaving ? (
+    <ActivityIndicator color="#FFFFFF" size="small" />
+  ) : (
+    <Text style={styles.saveBtnText}>✓ Kıyafetleri Kaydet</Text>
+  )}
+</TouchableOpacity>
     </View>
   );
 };

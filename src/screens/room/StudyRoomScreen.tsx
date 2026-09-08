@@ -26,13 +26,15 @@ import { useAuthStore } from '../../store/useAuthStore';
 import { useRoomStore } from '../../store/useRoomStore';
 import { usePetStore } from '../../store/usePetStore';
 import { useStudyStore } from '../../store/useStudyStore';
+import { usePetStateMachine } from '../../hooks/usePetStateMachine';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
 export const StudyRoomScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
   const { roomCode, username } = useAuthStore();
   const { furnitures, loadRoom, isLoading: isRoomLoading } = useRoomStore();
-  const { pet, fetchMyPet, updateAccessories, isLoading: isPetLoading } = usePetStore();
+  const { pet, fetchMyPet, updateAccessories } = usePetStore();
+  
   const {
     isFocusModeActive,
     startSession,
@@ -41,11 +43,19 @@ export const StudyRoomScreen: React.FC<{ navigation: any }> = ({ navigation }) =
     closeRewardModal,
   } = useStudyStore();
 
-  const { joinLiveRoom, leaveLiveRoom, broadcastStudyStatus } = useLiveRoomStore();
+  // Tek ve eksiksiz live room hook tanımı
+  const {
+    joinLiveRoom,
+    leaveLiveRoom,
+    broadcastStudyStatus,
+    broadcastAccessories,
+  } = useLiveRoomStore();
 
   const [isDurationModalVisible, setDurationModalVisible] = useState(false);
   const [showWardrobe, setShowWardrobe] = useState(false);
-  const [isSavingAccessories, setIsSavingAccessories] = useState(false);
+  
+  // Yalnızca kullanıcı kaydet butonuna bastığında aktif olan state
+  const [isSavingLocal, setIsSavingLocal] = useState(false);
 
   // Aksesuar ve Renk State'leri
   const [equippedHat, setEquippedHat] = useState<string>('NONE');
@@ -57,7 +67,7 @@ export const StudyRoomScreen: React.FC<{ navigation: any }> = ({ navigation }) =
   const [equippedAccessory, setEquippedAccessory] = useState<string>('NONE');
   const [accessoryColor, setAccessoryColor] = useState<string>('#E74C3C');
 
-  // İlk yükleme kilidi: Kullanıcı seçim yaparken pet güncellemelerinin yerel state'i ezmesini engeller
+  // İlk yükleme kilidi
   const isInitialLoaded = useRef(false);
 
   const originX = SCREEN_WIDTH / 2;
@@ -85,7 +95,14 @@ export const StudyRoomScreen: React.FC<{ navigation: any }> = ({ navigation }) =
     const petType = pet?.type || 'CAT';
 
     if (roomCode) {
-      joinLiveRoom(roomCode, activeUsername, petType);
+      joinLiveRoom(roomCode, activeUsername, petType, {
+        equippedHat,
+        hatColor,
+        equippedGlasses,
+        glassesColor,
+        equippedAccessory,
+        accessoryColor,
+      });
     }
 
     return () => {
@@ -115,24 +132,48 @@ export const StudyRoomScreen: React.FC<{ navigation: any }> = ({ navigation }) =
     closeRewardModal();
   };
 
-  // Aksesuarları veritabanına kaydetme işlemi
+  // Aksesuarları kaydetme ve odaya canlı yayınlama işlemi
   const handleSaveAccessories = async () => {
-    setIsSavingAccessories(true);
-    try {
-      await updateAccessories({
-        equippedHat: equippedHat === 'NONE' ? null : equippedHat,
-        equippedGlasses: equippedGlasses === 'NONE' ? null : equippedGlasses,
-        equippedAccessory: equippedAccessory === 'NONE' ? null : equippedAccessory,
-      } as any);
+    if (isSavingLocal) return;
+    setIsSavingLocal(true);
 
-      Alert.alert('Başarılı', 'Kıyafetler kaydedildi.');
+    const isFish = pet?.type === 'FISH';
+    const payload = {
+      equippedHat: equippedHat === 'NONE' ? null : equippedHat,
+      equippedGlasses: isFish || equippedGlasses === 'NONE' ? null : equippedGlasses,
+      equippedAccessory: isFish || equippedAccessory === 'NONE' ? null : equippedAccessory,
+    };
+
+    console.log('Sunucuya Gönderilen Kıyafet Verisi:', payload);
+
+    try {
+      // 1. Veritabanına kaydet
+      await updateAccessories(payload as any);
+
+      // 2. Canlı odadaki arkadaşlara yeni aksesuarları anında yayınla
+      if (roomCode && pet) {
+        broadcastAccessories(roomCode, username || 'Misafir', pet.type, {
+          equippedHat: equippedHat === 'NONE' ? undefined : equippedHat,
+          hatColor,
+          equippedGlasses: isFish || equippedGlasses === 'NONE' ? undefined : equippedGlasses,
+          glassesColor,
+          equippedAccessory: isFish || equippedAccessory === 'NONE' ? undefined : equippedAccessory,
+          accessoryColor,
+        });
+      }
+
+      Alert.alert('Başarılı! 🎉', 'Evcil hayvanının tarzı kaydedildi.');
       setShowWardrobe(false);
     } catch (error: any) {
-      Alert.alert('Hata', 'Kıyafetler kaydedilirken bir hata oluştu.');
+      console.error('Kıyafet kaydetme hatası:', error?.response?.data || error?.message || error);
+      Alert.alert('Hata', 'Kıyafetler kaydedilirken bir sorun oluştu.');
     } finally {
-      setIsSavingAccessories(false);
+      setIsSavingLocal(false);
     }
   };
+  const { currentState: myPetState } = usePetStateMachine({
+  isStudying: isFocusModeActive,
+});
 
   if (isRoomLoading) {
     return (
@@ -181,60 +222,60 @@ export const StudyRoomScreen: React.FC<{ navigation: any }> = ({ navigation }) =
         <LiveRoommatesLayer originX={originX} originY={originY} />
 
         {/* Katman: Kullanıcının Kendi Peti */}
-{pet && (
-  <View
-    style={[
-      styles.petPositioner,
-      {
-        // 105 boyutundaki petin karo merkezine tam oturması için ofsetler
-        left: petScreenPos.x - 52.5,
-        top: petScreenPos.y - 92,
-        zIndex: 4 + 4 + 50,
-      },
-    ]}
-  >
-    <PetAvatar
-      type={pet.type}
-      size={105} // Büyütülen boyut
-      isStudying={isFocusModeActive}
-      equippedHat={equippedHat}
-      hatColor={hatColor}
-      equippedGlasses={equippedGlasses}
-      glassesColor={glassesColor}
-      equippedAccessory={equippedAccessory}
-      accessoryColor={accessoryColor}
-    />
-    <View style={styles.petNameTag}>
-      <Text style={styles.petNameText}>{pet.name}</Text>
-    </View>
-  </View>
-)}
-      </View>
-
-      {/* Aksesuar & Gardırop Menüsü */}
-      {!isFocusModeActive && showWardrobe && (
-        <View style={styles.wardrobeContainer}>
-          <AccessoryMenu
-  petType={pet?.type}
+        {pet && (
+          <View
+            style={[
+              styles.petPositioner,
+              {
+                left: petScreenPos.x - 52.5,
+                top: petScreenPos.y - 92,
+                zIndex: 4 + 4 + 50,
+              },
+            ]}
+          >
+            <PetAvatar
+  type={pet.type}
+  size={105}
+  isStudying={isFocusModeActive}
+  petState={myPetState} // Durum makinesi bağlandı!
   equippedHat={equippedHat}
   hatColor={hatColor}
   equippedGlasses={equippedGlasses}
   glassesColor={glassesColor}
   equippedAccessory={equippedAccessory}
   accessoryColor={accessoryColor}
-  isSaving={isSavingAccessories || isPetLoading}
-  onSelectAccessory={(id, category) => {
-    if (category === 'HAT') setEquippedHat(id);
-    if (category === 'GLASSES') setEquippedGlasses(id);
-    if (category === 'NECK') setEquippedAccessory(id);
-  }}
-  onSelectColor={(color, category) => {
-    if (category === 'HAT') setHatColor(color);
-    if (category === 'GLASSES') setGlassesColor(color);
-    if (category === 'NECK') setAccessoryColor(color);
-  }}
-  onSave={handleSaveAccessories}
 />
+            <View style={styles.petNameTag}>
+              <Text style={styles.petNameText}>{pet.name}</Text>
+            </View>
+          </View>
+        )}
+      </View>
+
+      {/* Aksesuar & Gardırop Menüsü */}
+      {!isFocusModeActive && showWardrobe && (
+        <View style={styles.wardrobeContainer}>
+          <AccessoryMenu
+            petType={pet?.type}
+            equippedHat={equippedHat}
+            hatColor={hatColor}
+            equippedGlasses={equippedGlasses}
+            glassesColor={glassesColor}
+            equippedAccessory={equippedAccessory}
+            accessoryColor={accessoryColor}
+            isSaving={isSavingLocal}
+            onSelectAccessory={(id, category) => {
+              if (category === 'HAT') setEquippedHat(id);
+              if (category === 'GLASSES') setEquippedGlasses(id);
+              if (category === 'NECK') setEquippedAccessory(id);
+            }}
+            onSelectColor={(color, category) => {
+              if (category === 'HAT') setHatColor(color);
+              if (category === 'GLASSES') setGlassesColor(color);
+              if (category === 'NECK') setAccessoryColor(color);
+            }}
+            onSave={handleSaveAccessories}
+          />
         </View>
       )}
 
