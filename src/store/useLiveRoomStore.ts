@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { ActiveRoommate, RoomPresenceMessage } from '../types/socket';
 import { socketService } from '../services/socketService';
 import { PetType } from '../types';
+import { findFirstAvailableSlot } from '../utils/slotManager';
 
 export interface AccessoryPayload {
   equippedHat?: string;
@@ -210,114 +211,110 @@ export const useLiveRoomStore = create<LiveRoomState>((set, get) => ({
     }, 4500);
   },
 
-  handleIncomingMessage: (msg: any, myUsername: string) => {
-    if (msg.username === myUsername) return;
+handleIncomingMessage: (msg: any, myUsername: string) => {
+  if (msg.username === myUsername) return;
 
-    set((state) => {
-      const updated = { ...state.roommates };
-      let toastMessage = state.latestToast;
-      const reactions = { ...state.activeReactions };
+  set((state) => {
+    const updated = { ...state.roommates };
+    let toastMessage = state.latestToast;
+    const reactions = { ...state.activeReactions };
 
-      // 1. Canlı Tepki Emojisi Yakalama
-      if (msg.action === 'SEND_REACTION') {
-        const target = msg.targetUsername;
-        if (target) {
-          reactions[target] = msg.reactionEmoji;
-
-          if (target === myUsername) {
-            toastMessage = `${msg.username} sana ${msg.reactionEmoji} gönderdi!`;
-          }
-
-          setTimeout(() => {
-            set((s) => {
-              const r = { ...s.activeReactions };
-              delete r[target];
-              return { activeReactions: r };
-            });
-          }, 2500);
+    // 1. Canlı Tepki Emojisi Yakalama
+    if (msg.action === 'SEND_REACTION') {
+      const target = msg.targetUsername;
+      if (target) {
+        reactions[target] = msg.reactionEmoji;
+        if (target === myUsername) {
+          toastMessage = `${msg.username} sana ${msg.reactionEmoji} gönderdi!`;
         }
+        setTimeout(() => {
+          set((s) => {
+            const r = { ...s.activeReactions };
+            delete r[target];
+            return { activeReactions: r };
+          });
+        }, 2500);
+      }
+      return { roommates: updated, latestToast: toastMessage, activeReactions: reactions };
+    }
 
-        return {
-          roommates: updated,
-          latestToast: toastMessage,
-          activeReactions: reactions,
+    const accessoryData = {
+      equippedHat: msg.equippedHat,
+      hatColor: msg.hatColor,
+      equippedGlasses: msg.equippedGlasses,
+      glassesColor: msg.glassesColor,
+      equippedAccessory: msg.equippedAccessory,
+      accessoryColor: msg.accessoryColor,
+    };
+
+    switch (msg.action) {
+      case 'JOIN': {
+        // Mevcut dolu slotları topla
+        const occupiedSlots = Object.values(updated).map((mate) => mate.deskSlot);
+        
+        // Gelen slot boş mu, yoksa alternatif boş bir masa mı verelim?
+        const assignedSlot = findFirstAvailableSlot(occupiedSlots, msg.deskSlot);
+
+        updated[msg.username] = {
+          username: msg.username,
+          petType: msg.petType,
+          isStudying: false,
+          deskSlot: assignedSlot !== -1 ? assignedSlot : 0,
+          ...accessoryData,
         };
+        toastMessage = `${msg.username} odaya katıldı! 👋`;
+        break;
       }
 
-      // 2. Aksesuar Verisi
-      const accessoryData: AccessoryPayload = {
-        equippedHat: msg.equippedHat,
-        hatColor: msg.hatColor,
-        equippedGlasses: msg.equippedGlasses,
-        glassesColor: msg.glassesColor,
-        equippedAccessory: msg.equippedAccessory,
-        accessoryColor: msg.accessoryColor,
-      };
+      case 'LEAVE': {
+        // Çıkan kullanıcının slotu boşa çıkar, DİĞERLERİNİN MASASI DEĞİŞMEZ!
+        delete updated[msg.username];
+        toastMessage = `${msg.username} odadan ayrıldı.`;
+        break;
+      }
 
-      // 3. Standart Oda Durumu Aksiyonları
-      switch (msg.action) {
-        case 'JOIN':
+      case 'START_STUDY': {
+        if (updated[msg.username]) {
           updated[msg.username] = {
-            username: msg.username,
-            petType: msg.petType,
+            ...updated[msg.username],
+            isStudying: true,
+            targetMinutes: msg.targetMinutes,
+          };
+        }
+        toastMessage = `${msg.username}, ${msg.targetMinutes || 25} dk odaklanmaya başladı! 📖`;
+        break;
+      }
+
+      case 'STOP_STUDY': {
+        if (updated[msg.username]) {
+          updated[msg.username] = {
+            ...updated[msg.username],
             isStudying: false,
+          };
+        }
+        toastMessage = `${msg.username} mola verdi. ☕`;
+        break;
+      }
+
+      case 'UPDATE_ACCESSORIES': {
+        if (updated[msg.username]) {
+          updated[msg.username] = {
+            ...updated[msg.username],
             ...accessoryData,
           };
-          toastMessage = `${msg.username} odaya katıldı! 👋`;
-          break;
-
-        case 'LEAVE':
-          delete updated[msg.username];
-          toastMessage = `${msg.username} odadan ayrıldı.`;
-          break;
-
-        case 'START_STUDY':
-          if (updated[msg.username]) {
-            updated[msg.username] = {
-              ...updated[msg.username],
-              isStudying: true,
-              targetMinutes: msg.targetMinutes,
-            };
-          } else {
-            updated[msg.username] = {
-              username: msg.username,
-              petType: msg.petType,
-              isStudying: true,
-              targetMinutes: msg.targetMinutes,
-              ...accessoryData,
-            };
-          }
-          toastMessage = `${msg.username}, ${msg.targetMinutes || 25} dk odaklanmaya başladı! 📖`;
-          break;
-
-        case 'STOP_STUDY':
-          if (updated[msg.username]) {
-            updated[msg.username] = {
-              ...updated[msg.username],
-              isStudying: false,
-            };
-          }
-          toastMessage = `${msg.username} mola verdi. ☕`;
-          break;
-
-        case 'UPDATE_ACCESSORIES':
-          if (updated[msg.username]) {
-            updated[msg.username] = {
-              ...updated[msg.username],
-              ...accessoryData,
-            };
-            toastMessage = `${msg.username} yeni tarzını kuşandı! ✨`;
-          }
-          break;
+          toastMessage = `${msg.username} yeni tarzını kuşandı! ✨`;
+        }
+        break;
       }
+    }
 
-      return {
-        roommates: updated,
-        latestToast: toastMessage,
-        activeReactions: reactions,
-      };
-    });
-  },
+    return {
+      roommates: updated,
+      latestToast: toastMessage,
+      activeReactions: reactions,
+    };
+  });
+},
 
   resetLiveRoom: () => {
     set({

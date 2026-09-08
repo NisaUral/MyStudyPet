@@ -45,4 +45,38 @@ export interface DirectMessage {
   content: string;
   timestamp: number;
 }
+// src/types/socket.ts içinde güncellenecek kısımlar:
+
+export interface RoomPresenceMessage {
+  roomCode: string;
+  username: string;
+  petType: PetType;
+  action: RoomAction;
+  timestamp: number;
+  targetMinutes?: number;
+  deskSlot?: number; // 0, 1, 2, 3 (Hangi masada oturuyor?)
+  // Aksesuarlar...
+  equippedHat?: string;
+  hatColor?: string;
+  equippedGlasses?: string;
+  glassesColor?: string;
+  equippedAccessory?: string;
+  accessoryColor?: string;
+  reactionEmoji?: string;
+  targetUsername?: string;
+}
+
+export interface ActiveRoommate {
+  username: string;
+  petType: PetType;
+  isStudying: boolean;
+  targetMinutes?: number;
+  deskSlot: number; // Kullanıcının kilitlendiği masa slotu
+  equippedHat?: string;
+  hatColor?: string;
+  equippedGlasses?: string;
+  glassesColor?: string;
+  equippedAccessory?: string;
+  accessoryColor?: string;
+}
   

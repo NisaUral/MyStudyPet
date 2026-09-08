@@ -8,6 +8,7 @@ import {
   Dimensions,
   ActivityIndicator,
   Alert,
+  Animated,
 } from 'react-native';
 import { Theme } from '../../theme';
 import { IsometricRoomView } from '../../components/IsometricRoomView';
@@ -27,14 +28,26 @@ import { useRoomStore } from '../../store/useRoomStore';
 import { usePetStore } from '../../store/usePetStore';
 import { useStudyStore } from '../../store/useStudyStore';
 import { usePetStateMachine } from '../../hooks/usePetStateMachine';
+import { usePetWalkingController } from '../../hooks/usePetWalkingController';
+import { useWhisperBroadcast } from '../../hooks/useWhisperBroadcast';
+import { SpeechBubble } from '../../components/room/SpeechBubble';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
+const HOME_POS = { x: 4, y: 4 };
+
+// Masa slotları (LiveRoommatesLayer ile senkron)
+const DESK_SLOTS = [
+  { x: 2, y: 3 },
+  { x: 6, y: 3 },
+  { x: 2, y: 6 },
+  { x: 6, y: 6 },
+];
 
 export const StudyRoomScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
   const { roomCode, username } = useAuthStore();
   const { furnitures, loadRoom, isLoading: isRoomLoading } = useRoomStore();
   const { pet, fetchMyPet, updateAccessories } = usePetStore();
-  
+
   const {
     isFocusModeActive,
     startSession,
@@ -43,18 +56,18 @@ export const StudyRoomScreen: React.FC<{ navigation: any }> = ({ navigation }) =
     closeRewardModal,
   } = useStudyStore();
 
-  // Tek ve eksiksiz live room hook tanımı
+  // Tek ve birleşik useLiveRoomStore çağrısı
   const {
     joinLiveRoom,
     leaveLiveRoom,
     broadcastStudyStatus,
     broadcastAccessories,
+    sendDirectMessage,
+    roommates,
   } = useLiveRoomStore();
 
   const [isDurationModalVisible, setDurationModalVisible] = useState(false);
   const [showWardrobe, setShowWardrobe] = useState(false);
-  
-  // Yalnızca kullanıcı kaydet butonuna bastığında aktif olan state
   const [isSavingLocal, setIsSavingLocal] = useState(false);
 
   // Aksesuar ve Renk State'leri
@@ -67,12 +80,39 @@ export const StudyRoomScreen: React.FC<{ navigation: any }> = ({ navigation }) =
   const [equippedAccessory, setEquippedAccessory] = useState<string>('NONE');
   const [accessoryColor, setAccessoryColor] = useState<string>('#E74C3C');
 
-  // İlk yükleme kilidi
   const isInitialLoaded = useRef(false);
 
   const originX = SCREEN_WIDTH / 2;
   const originY = 80;
-  const petScreenPos = gridToScreen(4, 4, originX, originY);
+
+  // 18. Gün: Pet Durum Makinesi
+  const { currentState: myPetState } = usePetStateMachine({
+    isStudying: isFocusModeActive,
+  });
+
+  // 20. Gün: Yürüme ve Fısıldama Kontrolcüleri (Erken return öncesinde tanımlandı)
+  const {
+    animX,
+    animY,
+    currentGridPos,
+    isWalking,
+    walkToTarget,
+    walkDirectToTile,
+  } = usePetWalkingController({
+    initialGridPos: HOME_POS,
+    originX,
+    originY,
+    furnitures,
+  });
+
+  const { isBroadcasting, broadcastingText, startWhisperTour } = useWhisperBroadcast({
+    myHomePos: HOME_POS,
+    walkToTarget,
+    walkDirectToTile,
+    sendDirectMessage,
+    roomCode: roomCode || '',
+    myUsername: username || 'Misafir',
+  });
 
   useEffect(() => {
     if (roomCode) {
@@ -132,7 +172,6 @@ export const StudyRoomScreen: React.FC<{ navigation: any }> = ({ navigation }) =
     closeRewardModal();
   };
 
-  // Aksesuarları kaydetme ve odaya canlı yayınlama işlemi
   const handleSaveAccessories = async () => {
     if (isSavingLocal) return;
     setIsSavingLocal(true);
@@ -144,13 +183,9 @@ export const StudyRoomScreen: React.FC<{ navigation: any }> = ({ navigation }) =
       equippedAccessory: isFish || equippedAccessory === 'NONE' ? null : equippedAccessory,
     };
 
-    console.log('Sunucuya Gönderilen Kıyafet Verisi:', payload);
-
     try {
-      // 1. Veritabanına kaydet
       await updateAccessories(payload as any);
 
-      // 2. Canlı odadaki arkadaşlara yeni aksesuarları anında yayınla
       if (roomCode && pet) {
         broadcastAccessories(roomCode, username || 'Misafir', pet.type, {
           equippedHat: equippedHat === 'NONE' ? undefined : equippedHat,
@@ -171,9 +206,28 @@ export const StudyRoomScreen: React.FC<{ navigation: any }> = ({ navigation }) =
       setIsSavingLocal(false);
     }
   };
-  const { currentState: myPetState } = usePetStateMachine({
-  isStudying: isFocusModeActive,
-});
+
+  const handleBroadcastWhisper = () => {
+    const roommateList = Object.values(roommates);
+    if (roommateList.length === 0) {
+      Alert.alert('Oda Boş', 'Odada fısıldayabileceğin başka bir arkadaşın yok.');
+      return;
+    }
+
+    const targets = roommateList.map((mate, idx) => ({
+      username: mate.username,
+      gridPos: DESK_SLOTS[idx % DESK_SLOTS.length],
+    }));
+
+    if (Alert.prompt) {
+      Alert.prompt('Herkese Fısılda', 'Odadaki herkese iletilecek mesajı yazın:', (text) => {
+        if (!text?.trim()) return;
+        startWhisperTour(targets, text.trim());
+      });
+    } else {
+      startWhisperTour(targets, 'Birlikte iyi çalışıyoruz! 🚀');
+    }
+  };
 
   if (isRoomLoading) {
     return (
@@ -221,34 +275,38 @@ export const StudyRoomScreen: React.FC<{ navigation: any }> = ({ navigation }) =
 
         <LiveRoommatesLayer originX={originX} originY={originY} />
 
-        {/* Katman: Kullanıcının Kendi Peti */}
+        {/* Katman: Kullanıcının Kendi Peti (Artık doğru şekilde roomViewport içinde) */}
         {pet && (
-          <View
+          <Animated.View
             style={[
               styles.petPositioner,
               {
-                left: petScreenPos.x - 52.5,
-                top: petScreenPos.y - 92,
-                zIndex: 4 + 4 + 50,
+                left: Animated.subtract(animX, 52.5),
+                top: Animated.subtract(animY, 92),
+                zIndex: currentGridPos.x + currentGridPos.y + 50,
               },
             ]}
           >
+            {isBroadcasting && broadcastingText && (
+              <SpeechBubble message={broadcastingText} />
+            )}
+
             <PetAvatar
-  type={pet.type}
-  size={105}
-  isStudying={isFocusModeActive}
-  petState={myPetState} // Durum makinesi bağlandı!
-  equippedHat={equippedHat}
-  hatColor={hatColor}
-  equippedGlasses={equippedGlasses}
-  glassesColor={glassesColor}
-  equippedAccessory={equippedAccessory}
-  accessoryColor={accessoryColor}
-/>
+              type={pet.type}
+              size={105}
+              isStudying={isFocusModeActive}
+              petState={isWalking ? 'WALKING' : myPetState}
+              equippedHat={equippedHat}
+              hatColor={hatColor}
+              equippedGlasses={equippedGlasses}
+              glassesColor={glassesColor}
+              equippedAccessory={equippedAccessory}
+              accessoryColor={accessoryColor}
+            />
             <View style={styles.petNameTag}>
               <Text style={styles.petNameText}>{pet.name}</Text>
             </View>
-          </View>
+          </Animated.View>
         )}
       </View>
 
@@ -287,6 +345,14 @@ export const StudyRoomScreen: React.FC<{ navigation: any }> = ({ navigation }) =
             onPress={() => setShowWardrobe(!showWardrobe)}
           >
             <Text style={styles.btnEmoji}>{showWardrobe ? '✖' : '🎀'}</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.wardrobeToggleBtn, isBroadcasting && { opacity: 0.5 }]}
+            onPress={handleBroadcastWhisper}
+            disabled={isBroadcasting}
+          >
+            <Text style={styles.btnEmoji}>💬</Text>
           </TouchableOpacity>
 
           <TouchableOpacity

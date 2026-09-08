@@ -44,66 +44,68 @@ export const LiveRoommatesLayer: React.FC<Props> = ({ originX, originY }) => {
   };
 
   return (
-    <>
-      {roommateList.map((mate, index) => {
-        const slot = DESK_SLOTS[index % DESK_SLOTS.length];
-        const screenPos = gridToScreen(slot.x, slot.y, originX, originY);
-        const currentSpeech = activeSpeechBubbles[mate.username];
-        const currentReaction = activeReactions[mate.username];
+  <>
+    {roommateList.map((mate) => {
+      // Dizi index'i yerine doğrudan mate.deskSlot kullanıyoruz!
+      const slotIndex = mate.deskSlot >= 0 && mate.deskSlot < DESK_SLOTS.length ? mate.deskSlot : 0;
+      const slot = DESK_SLOTS[slotIndex];
+      const screenPos = gridToScreen(slot.x, slot.y, originX, originY);
+      const currentReaction = activeReactions[mate.username];
+      const currentSpeech = activeSpeechBubbles[mate.username];
 
-        return (
-          <View
-            key={mate.username}
-            style={[
-              styles.roommatePositioner,
-              {
-                left: screenPos.x - 52.5,
-                top: screenPos.y - 92,
-                zIndex: slot.x + slot.y + 50,
-              },
-            ]}
+      return (
+        <View
+          key={mate.username}
+          style={[
+            styles.roommatePositioner,
+            {
+              left: screenPos.x - 52.5,
+              top: screenPos.y - 92,
+              zIndex: slot.x + slot.y + 50,
+            },
+          ]}
+        >
+          {/* Konuşma Baloncuğu */}
+          {currentSpeech && <SpeechBubble message={currentSpeech} />}
+
+          {/* Tepki Emojisi Baloncuğu */}
+          {currentReaction && (
+            <View style={styles.reactionBubble}>
+              <Text style={styles.reactionEmojiText}>{currentReaction}</Text>
+            </View>
+          )}
+
+          {/* Pet Gövdesi */}
+          <TouchableOpacity
+            activeOpacity={0.85}
+            onPress={() => setSelectedRoommate(mate)}
           >
-            {/* Konuşma Baloncuğu */}
-            {currentSpeech && <SpeechBubble message={currentSpeech} />}
-            
-            {/* Tepki Emojisi Baloncuğu (Varsa Petin Üzerinde Belirir) */}
-            {currentReaction && (
-              <View style={styles.reactionBubble}>
-                <Text style={styles.reactionEmojiText}>{currentReaction}</Text>
-              </View>
-            )}
+            <PetAvatar
+              type={mate.petType}
+              size={105}
+              isStudying={mate.isStudying}
+              equippedHat={mate.equippedHat || 'NONE'}
+              hatColor={mate.hatColor || '#6C5CE7'}
+              equippedGlasses={mate.equippedGlasses || 'NONE'}
+              glassesColor={mate.glassesColor || '#2D3436'}
+              equippedAccessory={mate.equippedAccessory || 'NONE'}
+              accessoryColor={mate.accessoryColor || '#E74C3C'}
+            />
+          </TouchableOpacity>
 
-            {/* Dokunulabilir Pet */}
-            <TouchableOpacity
-              activeOpacity={0.85}
-              onPress={() => setSelectedRoommate(mate)}
-            >
-              <PetAvatar
-                type={(mate.petType as PetType) || 'CAT'}
-                size={105}
-                isStudying={mate.isStudying}
-                equippedHat={mate.equippedHat || 'NONE'}
-                hatColor={mate.hatColor || '#6C5CE7'}
-                equippedGlasses={mate.equippedGlasses || 'NONE'}
-                glassesColor={mate.glassesColor || '#2D3436'}
-                equippedAccessory={mate.equippedAccessory || 'NONE'}
-                accessoryColor={mate.accessoryColor || '#E74C3C'}
-              />
-            </TouchableOpacity>
-
-            {/* İsim & Durum Rozeti */}
-            <TouchableOpacity
-              activeOpacity={0.85}
-              onPress={() => setSelectedRoommate(mate)}
-              style={[styles.nameTag, mate.isStudying && styles.studyingTag]}
-            >
-              <Text style={styles.nameText}>
-                {mate.isStudying ? '📖 ' : ''}{mate.username}
-              </Text>
-            </TouchableOpacity>
-          </View>
-        );
-      })}
+          {/* İsim & Durum Rozeti */}
+          <TouchableOpacity
+            activeOpacity={0.85}
+            onPress={() => setSelectedRoommate(mate)}
+            style={[styles.nameTag, mate.isStudying && styles.studyingTag]}
+          >
+            <Text style={styles.nameText}>
+              {mate.isStudying ? '📖 ' : ''}{mate.username}
+            </Text>
+          </TouchableOpacity>
+        </View>
+      );
+    })}
 
       {/* Mini Profil & Tepki Modalı */}
       <RoommateProfileModal
