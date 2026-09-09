@@ -41,4 +41,8 @@ public class User {
     @CreationTimestamp
     @Column(updatable = false)
     private LocalDateTime createdAt;
+    @Column(nullable = false)
+    @Builder.Default
+    private Integer coins = 5; // Yeni kaydolan kullanıcılara başlangıçta 5 coin
+    
 }
