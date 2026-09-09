@@ -8,7 +8,10 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.*;
+import com.studyquest.dto.StudyCompletionRewardDTO;
+import com.studyquest.service.StreakAndRewardService;
 
 @RestController
 @RequestMapping("/api/study")
@@ -17,7 +20,7 @@ import org.springframework.web.bind.annotation.*;
 public class StudyController {
 
     private final StudyService studyService;
-
+    private final StreakAndRewardService streakAndRewardService;
     // POST /api/study/start -> Çalışma seansını sunucuda başlat
     @PostMapping("/start")
     public ResponseEntity<StudySessionResponse> startStudy(
@@ -44,4 +47,11 @@ public class StudyController {
         StudySessionResponse response = studyService.getActiveSession(user.getId());
         return ResponseEntity.ok(response);
     }
+    @PostMapping("/sessions/complete")
+public ResponseEntity<StudyCompletionRewardDTO> completeSession(
+        @AuthenticationPrincipal UserDetails userDetails,
+        @RequestParam int durationMinutes
+) {
+    return ResponseEntity.ok(streakAndRewardService.processSessionCompletion(userDetails.getUsername(), durationMinutes));
+}
 }

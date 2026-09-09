@@ -1,44 +1,15 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   View,
   Text,
-  TouchableOpacity,
   StyleSheet,
+  TouchableOpacity,
   ScrollView,
   ActivityIndicator,
 } from 'react-native';
+import { Theme } from '../theme';
 import { PetType } from '../types';
-
-const COLOR_PALETTE = [
-  '#6C5CE7', // Mor
-  '#E74C3C', // Kırmızı
-  '#E67E22', // Turuncu
-  '#F1C40F', // Sarı
-  '#2ECC71', // Yeşil
-  '#3498DB', // Mavi
-  '#E84393', // Pembe
-  '#2D3436', // Siyah
-  '#FFFFFF', // Beyaz
-];
-
-const ITEMS_BY_CATEGORY = {
-  HAT: [
-    { id: 'NONE', label: 'Çıkar ❌' },
-    { id: 'WIZARD_HAT', label: 'Büyücü 🧙‍♂️' },
-    { id: 'BASEBALL_CAP', label: 'Kep 🧢' },
-    { id: 'CROWN', label: 'Taç 👑' },
-    { id: 'BERET', label: 'Ressam 🎨' },
-  ],
-  GLASSES: [
-    { id: 'NONE', label: 'Çıkar ❌' },
-    { id: 'NERD_GLASSES', label: 'Gözlük 👓' },
-    { id: 'SUNGLASSES', label: 'Güneş Gözlüğü 🕶️' },
-  ],
-  NECK: [
-    { id: 'NONE', label: 'Çıkar ❌' },
-    { id: 'BOWTIE', label: 'Papyon 🎀' },
-  ],
-};
+import { useInventoryStore } from '../store/useInventoryStore';
 
 interface Props {
   petType?: PetType;
@@ -48,11 +19,13 @@ interface Props {
   glassesColor: string;
   equippedAccessory: string;
   accessoryColor: string;
-  isSaving?: boolean;
+  isSaving: boolean;
   onSelectAccessory: (id: string, category: 'HAT' | 'GLASSES' | 'NECK') => void;
   onSelectColor: (color: string, category: 'HAT' | 'GLASSES' | 'NECK') => void;
   onSave: () => void;
 }
+
+const COLOR_PALETTE = ['#6C5CE7', '#E74C3C', '#2ECC71', '#F1C40F', '#E67E22', '#2D3436'];
 
 export const AccessoryMenu: React.FC<Props> = ({
   petType,
@@ -62,237 +35,207 @@ export const AccessoryMenu: React.FC<Props> = ({
   glassesColor,
   equippedAccessory,
   accessoryColor,
-  isSaving = false,
+  isSaving,
   onSelectAccessory,
   onSelectColor,
   onSave,
 }) => {
-  const isFish = petType === 'FISH';
+  const { fetchInventory, getOwnedAccessories, isLoading } = useInventoryStore();
   const [activeTab, setActiveTab] = useState<'HAT' | 'GLASSES' | 'NECK'>('HAT');
 
   useEffect(() => {
-    if (isFish) setActiveTab('HAT');
-  }, [isFish]);
+    fetchInventory();
+  }, []);
 
-  const currentItem =
-    activeTab === 'HAT'
-      ? equippedHat || 'NONE'
-      : activeTab === 'GLASSES'
-      ? equippedGlasses || 'NONE'
-      : equippedAccessory || 'NONE';
+  const ownedAccessories = getOwnedAccessories();
 
-  const currentColor =
-    activeTab === 'HAT'
-      ? hatColor || '#6C5CE7'
-      : activeTab === 'GLASSES'
-      ? glassesColor || '#2D3436'
-      : accessoryColor || '#E74C3C';
+  // Envanterdeki eşyaları kategoriye göre eşle
+  const getItemsForTab = () => {
+    const baseItems = [{ itemKey: 'NONE', name: 'Yok' }];
+
+    const filtered = ownedAccessories.filter((item) => {
+      if (activeTab === 'HAT') return item.itemKey.includes('HAT') || item.itemKey.includes('CAP') || item.itemKey.includes('CROWN');
+      if (activeTab === 'GLASSES') return item.itemKey.includes('GLASSES');
+      if (activeTab === 'NECK') return item.itemKey.includes('BOWTIE') || item.itemKey.includes('COLLAR');
+      return false;
+    });
+
+    return [...baseItems, ...filtered];
+  };
+
+  const currentItems = getItemsForTab();
+  const currentEquipped =
+    activeTab === 'HAT' ? equippedHat : activeTab === 'GLASSES' ? equippedGlasses : equippedAccessory;
 
   return (
-    <View style={styles.menuContainer}>
-      {/* Kategori Sekmeleri */}
+    <View style={styles.container}>
+      {/* Kategori Seçici */}
       <View style={styles.tabRow}>
         <TouchableOpacity
-          style={[styles.tabBtn, activeTab === 'HAT' && styles.tabBtnActive]}
+          style={[styles.tab, activeTab === 'HAT' && styles.activeTab]}
           onPress={() => setActiveTab('HAT')}
         >
-          <Text style={[styles.tabText, activeTab === 'HAT' && styles.tabTextActive]}>
-            Şapka 🎩
-          </Text>
+          <Text style={[styles.tabText, activeTab === 'HAT' && styles.activeTabText]}>Şapkalar 🎩</Text>
         </TouchableOpacity>
 
-        {!isFish && (
+        {petType !== 'FISH' && (
           <>
             <TouchableOpacity
-              style={[styles.tabBtn, activeTab === 'GLASSES' && styles.tabBtnActive]}
+              style={[styles.tab, activeTab === 'GLASSES' && styles.activeTab]}
               onPress={() => setActiveTab('GLASSES')}
             >
-              <Text style={[styles.tabText, activeTab === 'GLASSES' && styles.tabTextActive]}>
-                Gözlük 👓
-              </Text>
+              <Text style={[styles.tabText, activeTab === 'GLASSES' && styles.activeTabText]}>Gözlük 🕶️</Text>
             </TouchableOpacity>
 
             <TouchableOpacity
-              style={[styles.tabBtn, activeTab === 'NECK' && styles.tabBtnActive]}
+              style={[styles.tab, activeTab === 'NECK' && styles.activeTab]}
               onPress={() => setActiveTab('NECK')}
             >
-              <Text style={[styles.tabText, activeTab === 'NECK' && styles.tabTextActive]}>
-                Papyon 🎀
-              </Text>
+              <Text style={[styles.tabText, activeTab === 'NECK' && styles.activeTabText]}>Boyunluk 🎀</Text>
             </TouchableOpacity>
           </>
         )}
       </View>
 
-      {/* Model Listesi */}
-      <Text style={styles.sectionTitle}>Model Seç:</Text>
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.scrollArea}>
-        {ITEMS_BY_CATEGORY[activeTab].map((item) => {
-          const isSelected = currentItem === item.id;
-          return (
-            <TouchableOpacity
-              key={item.id}
-              style={[styles.itemCard, isSelected && styles.itemCardActive]}
-              onPress={() => onSelectAccessory(item.id, activeTab)}
-            >
-              <Text style={[styles.itemText, isSelected && styles.itemTextActive]}>
-                {item.label}
-              </Text>
-            </TouchableOpacity>
-          );
-        })}
-      </ScrollView>
-
-      {/* Renk Paleti */}
-      <View style={styles.colorWrapper}>
-        <Text style={styles.sectionTitle}>
-          Renk Seç ({activeTab === 'HAT' ? 'Şapka' : activeTab === 'GLASSES' ? 'Gözlük' : 'Papyon'} için):
-        </Text>
-        <View style={styles.paletteRow}>
-          {COLOR_PALETTE.map((color) => {
-            const isColorActive = currentColor.toLowerCase() === color.toLowerCase();
+      {/* Satın Alınan Eşyaların Yatay Listesi */}
+      {isLoading ? (
+        <ActivityIndicator size="small" color={Theme.colors.primary} style={{ marginVertical: 12 }} />
+      ) : (
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.itemList}>
+          {currentItems.map((item) => {
+            const isSelected = currentEquipped === item.itemKey;
             return (
               <TouchableOpacity
-                key={color}
-                style={[
-                  styles.colorCircle,
-                  { backgroundColor: color },
-                  isColorActive && styles.colorCircleActive,
-                ]}
-                onPress={() => onSelectColor(color, activeTab)}
-              />
+                key={item.itemKey}
+                style={[styles.itemCard, isSelected && styles.selectedCard]}
+                onPress={() => onSelectAccessory(item.itemKey, activeTab)}
+              >
+                <Text style={styles.itemName}>{item.name}</Text>
+                {isSelected && <Text style={styles.checkIcon}>✓</Text>}
+              </TouchableOpacity>
             );
           })}
+        </ScrollView>
+      )}
+
+      {/* Renk Paleti */}
+      {currentEquipped !== 'NONE' && (
+        <View style={styles.colorRow}>
+          {COLOR_PALETTE.map((c) => (
+            <TouchableOpacity
+              key={c}
+              style={[
+                styles.colorDot,
+                { backgroundColor: c },
+                (activeTab === 'HAT' ? hatColor : activeTab === 'GLASSES' ? glassesColor : accessoryColor) === c &&
+                  styles.activeColorDot,
+              ]}
+              onPress={() => onSelectColor(c, activeTab)}
+            />
+          ))}
         </View>
-      </View>
+      )}
 
       {/* Kaydet Butonu */}
-      {/* 4. Onayla / Kaydet Butonu */}
-<TouchableOpacity
-  activeOpacity={0.8}
-  style={[styles.saveBtn, isSaving && styles.saveBtnDisabled]}
-  onPress={() => {
-    console.log('Kaydet butonuna tıklandı');
-    onSave();
-  }}
-  disabled={isSaving}
->
-  {isSaving ? (
-    <ActivityIndicator color="#FFFFFF" size="small" />
-  ) : (
-    <Text style={styles.saveBtnText}>✓ Kıyafetleri Kaydet</Text>
-  )}
-</TouchableOpacity>
+      <TouchableOpacity
+        style={[styles.saveButton, isSaving && { opacity: 0.6 }]}
+        onPress={onSave}
+        disabled={isSaving}
+      >
+        <Text style={styles.saveButtonText}>{isSaving ? 'Kaydediliyor...' : 'Kuşan & Kaydet ✨'}</Text>
+      </TouchableOpacity>
     </View>
   );
 };
 
 const styles = StyleSheet.create({
-  menuContainer: {
-    backgroundColor: '#FFFFFF',
-    padding: 14,
-    borderRadius: 16,
-    marginHorizontal: 16,
-    marginBottom: 8,
-    elevation: 8,
+  container: {
+    backgroundColor: Theme.colors.surface,
+    borderRadius: Theme.borderRadius.md,
+    padding: 12,
+    elevation: 4,
     shadowColor: '#000',
-    shadowOpacity: 0.15,
-    shadowRadius: 8,
-    borderWidth: 1.5,
-    borderColor: '#E2E8F0',
+    shadowOpacity: 0.1,
+    shadowRadius: 6,
   },
   tabRow: {
     flexDirection: 'row',
-    backgroundColor: '#F1F2F6',
-    borderRadius: 10,
-    padding: 3,
+    gap: 8,
     marginBottom: 10,
   },
-  tabBtn: {
+  tab: {
     flex: 1,
-    paddingVertical: 7,
+    paddingVertical: 6,
     alignItems: 'center',
-    borderRadius: 8,
+    borderRadius: Theme.borderRadius.sm,
+    backgroundColor: '#F1F5F9',
   },
-  tabBtnActive: {
-    backgroundColor: '#6C5CE7',
+  activeTab: {
+    backgroundColor: Theme.colors.primary,
   },
   tabText: {
     fontSize: 12,
-    fontWeight: '700',
-    color: '#636E72',
+    fontWeight: '600',
+    color: '#64748B',
   },
-  tabTextActive: {
+  activeTabText: {
     color: '#FFFFFF',
+    fontWeight: 'bold',
   },
-  sectionTitle: {
-    fontSize: 11,
-    fontWeight: '800',
-    color: '#2D3436',
-    marginBottom: 6,
-    textTransform: 'uppercase',
-  },
-  scrollArea: {
-    marginBottom: 10,
+  itemList: {
+    flexDirection: 'row',
+    gap: 8,
+    paddingVertical: 6,
   },
   itemCard: {
     paddingHorizontal: 12,
-    paddingVertical: 7,
-    borderRadius: 8,
-    backgroundColor: '#F8F9FA',
-    marginRight: 8,
+    paddingVertical: 8,
+    borderRadius: Theme.borderRadius.sm,
+    backgroundColor: '#F8FAFC',
     borderWidth: 1.5,
-    borderColor: '#DFE4EA',
+    borderColor: '#E2E8F0',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
   },
-  itemCardActive: {
-    borderColor: '#6C5CE7',
-    backgroundColor: '#EDEAFE',
+  selectedCard: {
+    borderColor: Theme.colors.primary,
+    backgroundColor: 'rgba(108, 92, 231, 0.08)',
   },
-  itemText: {
+  itemName: {
     fontSize: 12,
-    color: '#2D3436',
+    color: Theme.colors.textPrimary,
     fontWeight: '600',
   },
-  itemTextActive: {
-    color: '#6C5CE7',
+  checkIcon: {
+    fontSize: 12,
+    color: Theme.colors.primary,
     fontWeight: 'bold',
   },
-  colorWrapper: {
-    borderTopWidth: 1,
-    borderTopColor: '#F1F2F6',
-    paddingTop: 8,
-    marginBottom: 10,
-  },
-  paletteRow: {
+  colorRow: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  colorCircle: {
-    width: 26,
-    height: 26,
-    borderRadius: 13,
-    borderWidth: 1.5,
-    borderColor: '#DFE4EA',
-  },
-  colorCircleActive: {
-    borderColor: '#2D3436',
-    borderWidth: 3,
-    transform: [{ scale: 1.15 }],
-  },
-  saveBtn: {
-    backgroundColor: '#2ED573',
-    paddingVertical: 10,
-    borderRadius: 10,
-    alignItems: 'center',
     justifyContent: 'center',
-    marginTop: 6,
+    gap: 12,
+    marginTop: 10,
   },
-  saveBtnDisabled: {
-    opacity: 0.7,
+  colorDot: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
   },
-  saveBtnText: {
-    color: '#FFFFFF',
+  activeColorDot: {
+    borderWidth: 2.5,
+    borderColor: '#1E293B',
+  },
+  saveButton: {
+    backgroundColor: Theme.colors.primary,
+    borderRadius: Theme.borderRadius.sm,
+    paddingVertical: 8,
+    alignItems: 'center',
+    marginTop: 12,
+  },
+  saveButtonText: {
+    color: '#FFF',
     fontWeight: 'bold',
     fontSize: 13,
   },

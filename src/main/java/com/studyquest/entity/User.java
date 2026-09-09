@@ -6,6 +6,7 @@ import org.hibernate.annotations.CreationTimestamp;
 
 import java.time.LocalDateTime;
 
+
 @Entity
 @Table(name = "users")
 @Getter
@@ -44,5 +45,11 @@ public class User {
     @Column(nullable = false)
     @Builder.Default
     private Integer coins = 5; // Yeni kaydolan kullanıcılara başlangıçta 5 coin
+
+    @Column(nullable = false)
+@Builder.Default
+private Integer currentStreak = 0;
+
+private java.time.LocalDate lastStudyDate;
     
 }

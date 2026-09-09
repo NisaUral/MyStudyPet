@@ -1,6 +1,14 @@
 import { create } from 'zustand';
 import { PlacedFurnitureState } from '../constants/furniture';
 import { roomApi, SaveRoomLayoutPayload } from '../api/roomApi';
+import api from '../services/api';
+
+export interface AddFurnitureInput {
+  furnitureType: string; // veya itemId
+  gridX: number;
+  gridY: number;
+  rotation?: number;
+}
 
 interface RoomState {
   roomCode: string | null;
@@ -16,6 +24,7 @@ interface RoomState {
   saveCurrentLayout: () => Promise<void>;
   addOrUpdateFurniture: (item: PlacedFurnitureState) => void;
   removeFurniture: (instanceId: string) => void;
+  addFurniture: (item: AddFurnitureInput) => Promise<void>; // <-- Interface'e eklendi
 }
 
 export const useRoomStore = create<RoomState>((set, get) => ({
@@ -90,5 +99,27 @@ export const useRoomStore = create<RoomState>((set, get) => ({
     set((state) => ({
       furnitures: state.furnitures.filter((f) => f.instanceId !== instanceId),
     }));
+  },
+
+  addFurniture: async (input: AddFurnitureInput) => {
+    const newPlacedItem: PlacedFurnitureState = {
+      instanceId: `furn_${input.furnitureType}_${Date.now()}`,
+      itemId: input.furnitureType,
+      gridX: input.gridX,
+      gridY: input.gridY,
+      rotation: input.rotation ?? 0,
+    };
+
+    // 1. Ekranın hemen güncellenmesi için yerel listeye ekle
+    set((state) => ({
+      furnitures: [...state.furnitures, newPlacedItem],
+    }));
+
+    // 2. Mevcut oda düzenini kaydet
+    try {
+      await get().saveCurrentLayout();
+    } catch (error) {
+      console.warn('Oda düzeni kaydedilirken hata oluştu (yerel state korundu):', error);
+    }
   },
 }));

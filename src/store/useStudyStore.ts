@@ -1,8 +1,29 @@
 import { create } from 'zustand';
-import { studyApi, StudySessionResponse } from '../api/studyApi';
+import { studyApi } from '../api/studyApi';
 import { useAuthStore } from './useAuthStore';
 
 export type StudyStatus = 'IDLE' | 'RUNNING' | 'COMPLETED';
+
+export interface UnlockedAchievement {
+  type: string;
+  title: string;
+  description: string;
+  bonusCoins: number;
+}
+
+export interface StudySessionResponse {
+  earnedCoins: number;
+  actualDurationMinutes: number;
+  isCompleted: boolean;
+  currentCoinBalance?: number; // updateCoinBalance için eklendi
+  baseCoins?: number;
+  multiplier?: number;
+  totalEarnedCoins?: number;
+  newTotalCoins?: number;
+  currentStreak?: number;
+  streakIncreased?: boolean;
+  newlyUnlockedAchievements?: UnlockedAchievement[];
+}
 
 interface StudyState {
   status: StudyStatus;
@@ -53,7 +74,10 @@ export const useStudyStore = create<StudyState>((set, get) => ({
   stopSessionEarly: async () => {
     try {
       const reward = await studyApi.cancelStudy();
-      useAuthStore.getState().updateCoinBalance(reward.currentCoinBalance);
+      const newBalance = reward.currentCoinBalance ?? reward.newTotalCoins;
+      if (newBalance !== undefined) {
+        useAuthStore.getState().updateCoinBalance(newBalance);
+      }
 
       set({
         status: 'IDLE',
@@ -70,7 +94,10 @@ export const useStudyStore = create<StudyState>((set, get) => ({
   completeSession: async () => {
     try {
       const reward = await studyApi.completeStudy();
-      useAuthStore.getState().updateCoinBalance(reward.currentCoinBalance);
+      const newBalance = reward.currentCoinBalance ?? reward.newTotalCoins;
+      if (newBalance !== undefined) {
+        useAuthStore.getState().updateCoinBalance(newBalance);
+      }
 
       set({
         status: 'COMPLETED',

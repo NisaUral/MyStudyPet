@@ -31,6 +31,7 @@ import { usePetStateMachine } from '../../hooks/usePetStateMachine';
 import { usePetWalkingController } from '../../hooks/usePetWalkingController';
 import { useWhisperBroadcast } from '../../hooks/useWhisperBroadcast';
 import { SpeechBubble } from '../../components/room/SpeechBubble';
+import { FurniturePlacementModal } from '../../components/room/FurniturePlacementModal';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const HOME_POS = { x: 4, y: 4 };
@@ -79,6 +80,7 @@ export const StudyRoomScreen: React.FC<{ navigation: any }> = ({ navigation }) =
 
   const [equippedAccessory, setEquippedAccessory] = useState<string>('NONE');
   const [accessoryColor, setAccessoryColor] = useState<string>('#E74C3C');
+  const [showFurniturePlacement, setShowFurniturePlacement] = useState(false);
 
   const isInitialLoaded = useRef(false);
 
@@ -346,6 +348,12 @@ export const StudyRoomScreen: React.FC<{ navigation: any }> = ({ navigation }) =
           >
             <Text style={styles.btnEmoji}>{showWardrobe ? '✖' : '🎀'}</Text>
           </TouchableOpacity>
+          <TouchableOpacity
+  style={styles.wardrobeToggleBtn}
+  onPress={() => setShowFurniturePlacement(true)}
+>
+  <Text style={styles.btnEmoji}>🛋️</Text>
+</TouchableOpacity>
 
           <TouchableOpacity
             style={[styles.wardrobeToggleBtn, isBroadcasting && { opacity: 0.5 }]}
@@ -362,8 +370,16 @@ export const StudyRoomScreen: React.FC<{ navigation: any }> = ({ navigation }) =
             <Text style={styles.startStudyIcon}>⏳</Text>
             <Text style={styles.startStudyText}>Çalışmaya Başla</Text>
           </TouchableOpacity>
+          {/* StudyRoomScreen.tsx içindeki topBar sağına veya bottomBar'a: */}
+<TouchableOpacity
+  style={styles.wardrobeToggleBtn}
+  onPress={() => navigation.navigate('Shop')}
+>
+  <Text style={styles.btnEmoji}>🛒</Text>
+</TouchableOpacity>
         </View>
       )}
+
 
       <StudyDurationModal
         visible={isDurationModalVisible}
@@ -374,12 +390,20 @@ export const StudyRoomScreen: React.FC<{ navigation: any }> = ({ navigation }) =
       <FocusOverlay />
 
       <RewardModal
-        visible={isRewardModalVisible}
-        earnedCoins={lastReward?.earnedCoins || 0}
-        workedMinutes={lastReward?.actualDurationMinutes || 0}
-        isCompleted={lastReward?.isCompleted || false}
-        onClose={handleCloseReward}
-      />
+  visible={isRewardModalVisible}
+  earnedCoins={lastReward?.totalEarnedCoins || lastReward?.earnedCoins || 0}
+  baseCoins={lastReward?.baseCoins || 0}
+  multiplier={lastReward?.multiplier || 1.0}
+  currentStreak={lastReward?.currentStreak || 1}
+  workedMinutes={lastReward?.actualDurationMinutes || 0}
+  isCompleted={lastReward?.isCompleted || false}
+  newlyUnlockedAchievements={lastReward?.newlyUnlockedAchievements || []}
+  onClose={handleCloseReward}
+/>
+      <FurniturePlacementModal
+  visible={showFurniturePlacement}
+  onClose={() => setShowFurniturePlacement(false)}
+/>
     </SafeAreaView>
   );
 };
@@ -514,4 +538,5 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: 'bold',
   },
+  
 });

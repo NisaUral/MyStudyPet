@@ -5,6 +5,7 @@ export interface StudySessionResponse {
   targetDurationMinutes: number;
   actualDurationMinutes: number;
   earnedCoins: number;
+  newTotalCoins?: number;
   isCompleted: boolean;
   startedAt: string;
   endedAt?: string;
