@@ -1,225 +1,215 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   TouchableOpacity,
   SafeAreaView,
-  FlatList,
-  ActivityIndicator,
-  Modal,
+  ScrollView,
   Alert,
 } from 'react-native';
-import { Theme } from '../../theme';
-import { useShopStore } from '../../store/useShopStore';
-import { ShopCategory, ShopItem } from '../../types/shop';
+import { useAuthStore } from '../../store/useAuthStore';
+import { triggerHaptic } from '../../utils/haptics';
 
-const CATEGORIES: { key: ShopCategory; label: string; emoji: string }[] = [
-  { key: 'PET_ACCESSORY', label: 'Aksesuarlar', emoji: '🎀' },
-  { key: 'FURNITURE', label: 'Mobilyalar', emoji: '🪑' },
-  { key: 'WALLPAPER', label: 'Duvar Kağıdı', emoji: '🖼️' },
+interface ShopItemModel {
+  id: number;
+  itemKey: string;
+  name: string;
+  description: string;
+  category: 'FURNITURE' | 'PET_ACCESSORY' | 'WALLPAPER';
+  price: number;
+  iconEmoji: string;
+  isOwned: boolean;
+}
+
+const INITIAL_SHOP_ITEMS: ShopItemModel[] = [
+  {
+    id: 1,
+    itemKey: 'DESK_WOODEN',
+    name: 'Ahşap Çalışma Masası',
+    description: 'Odaklanmak için sade ve klasik meşe masa.',
+    category: 'FURNITURE',
+    price: 150,
+    iconEmoji: '🪵',
+    isOwned: false,
+  },
+  {
+    id: 2,
+    itemKey: 'BOOKSHELF_OAK',
+    name: 'Kitaplık',
+    description: 'Çalışma kitaplarını ve notları dizebileceğin raf.',
+    category: 'FURNITURE',
+    price: 200,
+    iconEmoji: '📚',
+    isOwned: false,
+  },
+  {
+    id: 3,
+    itemKey: 'PLANT_MONSTERA',
+    name: 'Monstera Bitkisi',
+    description: 'Odaya ferahlık katan yeşil yapraklı saksı çiçeği.',
+    category: 'FURNITURE',
+    price: 80,
+    iconEmoji: '🪴',
+    isOwned: false,
+  },
+  {
+    id: 4,
+    itemKey: 'COZY_LAMP',
+    name: 'Sıcak Gece Lambası',
+    description: 'Gece çalışmaları için gözü yormayan sarı ışık.',
+    category: 'FURNITURE',
+    price: 120,
+    iconEmoji: '🛋️',
+    isOwned: false,
+  },
+  {
+    id: 5,
+    itemKey: 'HAT_WIZARD',
+    name: 'Büyücü Şapkası',
+    description: 'Petine +10 bilgelik katan mor şapka.',
+    category: 'PET_ACCESSORY',
+    price: 100,
+    iconEmoji: '🧙‍♂️',
+    isOwned: false,
+  },
+  {
+    id: 6,
+    itemKey: 'GLASSES_STUDIOUS',
+    name: 'Ders Çalışma Gözlüğü',
+    description: 'Ciddi ve entelektüel bir hava katar.',
+    category: 'PET_ACCESSORY',
+    price: 90,
+    iconEmoji: '👓',
+    isOwned: false,
+  },
+  {
+    id: 7,
+    itemKey: 'BOW_RED',
+    name: 'Kırmızı Papyon',
+    description: 'Önemli sınav günleri için şık bir papyon.',
+    category: 'PET_ACCESSORY',
+    price: 60,
+    iconEmoji: '🎀',
+    isOwned: false,
+  },
+  {
+    id: 8,
+    itemKey: 'FLOOR_WOOD_DARK',
+    name: 'Koyu Ahşap Parke',
+    description: 'Odaya modern bir zemin dokusu kazandırır.',
+    category: 'WALLPAPER',
+    price: 250,
+    iconEmoji: '🧱',
+    isOwned: false,
+  },
 ];
 
 export const ShopScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
-  const {
-    items,
-    selectedCategory,
-    userCoins,
-    isLoading,
-    isPurchasing,
-    setSelectedCategory,
-    fetchShopItems,
-    fetchUserCoins,
-    purchaseItem,
-  } = useShopStore();
+  const { user, buyItem } = useAuthStore() as any;
+  const [selectedCategory, setSelectedCategory] = useState<string>('ALL');
 
-  const [selectedItemToBuy, setSelectedItemToBuy] = useState<ShopItem | null>(null);
+  const userCoins = user?.coins ?? 0;
+  const userInventory: string[] = user?.inventory ?? [];
 
-  useEffect(() => {
-    fetchUserCoins();
-    fetchShopItems(selectedCategory);
-  }, []);
+  // Eşyaların sahiplik durumunu global inventory'den oku
+  const items = INITIAL_SHOP_ITEMS.map((item) => ({
+    ...item,
+    isOwned: userInventory.includes(item.itemKey),
+  }));
 
-  const handleConfirmPurchase = async () => {
-    if (!selectedItemToBuy) return;
+  const filteredItems = selectedCategory === 'ALL'
+    ? items
+    : items.filter((item) => item.category === selectedCategory);
 
-    const result = await purchaseItem(selectedItemToBuy.id);
-    setSelectedItemToBuy(null);
+  const handleBuy = (item: any) => {
+    triggerHaptic.light();
 
-    if (result.success) {
-      Alert.alert('Hayırlı Olsun! 🎉', result.message);
-    } else {
-      Alert.alert('İşlem Başarısız', result.message);
+    if (userCoins < item.price) {
+      Alert.alert('Yetersiz Coin 🪙', 'Bu eşyayı almak için biraz daha ders çalışmalısın!');
+      return;
     }
-  };
 
-  const renderItem = ({ item }: { item: ShopItem }) => {
-    const canAfford = userCoins >= item.price;
-
-    return (
-      <View style={[styles.card, item.isOwned && styles.cardOwned]}>
-        <View style={styles.cardHeader}>
-          <Text style={styles.itemEmoji}>
-            {item.category === 'PET_ACCESSORY'
-              ? '👑'
-              : item.category === 'FURNITURE'
-              ? '🛋️'
-              : '🎨'}
-          </Text>
-          {item.isOwned && (
-            <View style={styles.ownedBadge}>
-              <Text style={styles.ownedBadgeText}>SAHİPSİN</Text>
-            </View>
-          )}
-        </View>
-
-        <Text style={styles.itemName} numberOfLines={1}>
-          {item.name}
-        </Text>
-        <Text style={styles.itemDescription} numberOfLines={2}>
-          {item.description || 'Çalışma odanı özelleştir.'}
-        </Text>
-
-        <View style={styles.cardFooter}>
-          <View style={styles.priceRow}>
-            <Text style={styles.coinIcon}>🪙</Text>
-            <Text style={styles.priceText}>{item.price}</Text>
-          </View>
-
-          {item.isOwned ? (
-            <View style={styles.ownedButton}>
-              <Text style={styles.ownedButtonText}>Envanterde</Text>
-            </View>
-          ) : (
-            <TouchableOpacity
-              style={[
-                styles.buyButton,
-                !canAfford && styles.buyButtonDisabled,
-              ]}
-              onPress={() => setSelectedItemToBuy(item)}
-              disabled={!canAfford || isPurchasing}
-            >
-              <Text style={styles.buyButtonText}>
-                {canAfford ? 'Satın Al' : 'Yetersiz'}
-              </Text>
-            </TouchableOpacity>
-          )}
-        </View>
-      </View>
+    Alert.alert(
+      'Satın Alma Onayı',
+      `${item.name} eşyasını ${item.price} Coin karşılığında almak istiyor musun?`,
+      [
+        { text: 'Vazgeç', style: 'cancel' },
+        {
+          text: 'Satın Al',
+          onPress: () => {
+            const success = buyItem(item.itemKey, item.price);
+            if (success) {
+              triggerHaptic.success();
+              Alert.alert('Hayırlı Olsun! 🎉', `${item.name} başarıyla satın alındı.`);
+            } else {
+              Alert.alert('Hata', 'İşlem gerçekleştirilemedi.');
+            }
+          },
+        },
+      ]
     );
   };
 
   return (
     <SafeAreaView style={styles.container}>
-      {/* Üst Bar: Geri Butonu + Bakiye */}
-      <View style={styles.topBar}>
-        <TouchableOpacity
-          style={styles.backButton}
-          onPress={() => navigation.goBack()}
-        >
+      {/* Üst Başlık */}
+      <View style={styles.header}>
+        <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()}>
           <Text style={styles.backButtonText}>← Geri</Text>
         </TouchableOpacity>
-
-        <View style={styles.coinContainer}>
-          <Text style={styles.coinBadgeIcon}>🪙</Text>
-          <Text style={styles.coinBadgeText}>{userCoins}</Text>
-        </View>
-      </View>
-
-      <Text style={styles.title}>Study Room Mağazası</Text>
-
-      {/* Kategori Sekmeleri */}
-      <View style={styles.tabsContainer}>
-        {CATEGORIES.map((cat) => {
-          const isActive = selectedCategory === cat.key;
-          return (
-            <TouchableOpacity
-              key={cat.key}
-              style={[styles.tabButton, isActive && styles.activeTabButton]}
-              onPress={() => setSelectedCategory(cat.key)}
-            >
-              <Text style={styles.tabEmoji}>{cat.emoji}</Text>
-              <Text
-                style={[
-                  styles.tabLabel,
-                  isActive && styles.activeTabLabel,
-                ]}
-              >
-                {cat.label}
-              </Text>
-            </TouchableOpacity>
-          );
-        })}
-      </View>
-
-      {/* Ürün Listesi */}
-      {isLoading ? (
-        <View style={styles.centerContainer}>
-          <ActivityIndicator size="large" color={Theme.colors.primary} />
-          <Text style={styles.loadingText}>Ürünler listeleniyor...</Text>
-        </View>
-      ) : items.length === 0 ? (
-        <View style={styles.centerContainer}>
-          <Text style={styles.emptyText}>Bu kategoride henüz ürün yok.</Text>
-        </View>
-      ) : (
-        <FlatList
-          data={items}
-          keyExtractor={(item) => item.id.toString()}
-          renderItem={renderItem}
-          numColumns={2}
-          contentContainerStyle={styles.listContent}
-          columnWrapperStyle={styles.columnWrapper}
-          showsVerticalScrollIndicator={false}
-        />
-      )}
-
-      {/* Satın Alma Onay Modalı */}
-      <Modal
-        visible={!!selectedItemToBuy}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setSelectedItemToBuy(null)}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>Satın Alma Onayı</Text>
-            <Text style={styles.modalMessage}>
-              <Text style={{ fontWeight: 'bold' }}>{selectedItemToBuy?.name}</Text>{' '}
-              ürününü satın almak istiyor musunuz?
-            </Text>
-
-            <View style={styles.modalPriceRow}>
-              <Text style={styles.modalPriceLabel}>Fiyat:</Text>
-              <Text style={styles.modalPriceVal}>
-                🪙 {selectedItemToBuy?.price} Coin
-              </Text>
-            </View>
-
-            <View style={styles.modalActions}>
-              <TouchableOpacity
-                style={styles.cancelBtn}
-                onPress={() => setSelectedItemToBuy(null)}
-                disabled={isPurchasing}
-              >
-                <Text style={styles.cancelBtnText}>Vazgeç</Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={styles.confirmBtn}
-                onPress={handleConfirmPurchase}
-                disabled={isPurchasing}
-              >
-                {isPurchasing ? (
-                  <ActivityIndicator size="small" color="#FFF" />
-                ) : (
-                  <Text style={styles.confirmBtnText}>Onayla</Text>
-                )}
-              </TouchableOpacity>
-            </View>
+        <View style={styles.titleRow}>
+          <Text style={styles.title}>StudyQuest Mağaza 🏪</Text>
+          <View style={styles.coinBadge}>
+            <Text style={styles.coinText}>🪙 {userCoins} Coin</Text>
           </View>
         </View>
-      </Modal>
+      </View>
+
+      {/* Kategori Filtre Butonları */}
+      <View style={styles.filterRow}>
+        {['ALL', 'FURNITURE', 'PET_ACCESSORY', 'WALLPAPER'].map((cat) => (
+          <TouchableOpacity
+            key={cat}
+            style={[styles.filterChip, selectedCategory === cat && styles.filterChipActive]}
+            onPress={() => {
+              triggerHaptic.light();
+              setSelectedCategory(cat);
+            }}
+          >
+            <Text style={[styles.filterChipText, selectedCategory === cat && styles.filterChipTextActive]}>
+              {cat === 'ALL' ? 'Tümü' : cat === 'FURNITURE' ? 'Mobilya' : cat === 'PET_ACCESSORY' ? 'Pet' : 'Zemin'}
+            </Text>
+          </TouchableOpacity>
+        ))}
+      </View>
+
+      {/* Eşya Listesi */}
+      <ScrollView contentContainerStyle={styles.scrollList} showsVerticalScrollIndicator={false}>
+        <View style={styles.grid}>
+          {filteredItems.map((item) => (
+            <View key={item.id} style={styles.card}>
+              <Text style={styles.itemEmoji}>{item.iconEmoji}</Text>
+              <Text style={styles.itemName}>{item.name}</Text>
+              <Text style={styles.itemDesc} numberOfLines={2}>{item.description}</Text>
+
+              <View style={styles.priceRow}>
+                <Text style={styles.priceText}>🪙 {item.price}</Text>
+              </View>
+
+              <TouchableOpacity
+                style={[styles.buyButton, item.isOwned && styles.ownedButton]}
+                disabled={item.isOwned}
+                onPress={() => handleBuy(item)}
+              >
+                <Text style={[styles.buyButtonText, item.isOwned && styles.ownedButtonText]}>
+                  {item.isOwned ? 'Sahipsin ✓' : 'Satın Al'}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          ))}
+        </View>
+      </ScrollView>
     </SafeAreaView>
   );
 };
@@ -227,268 +217,134 @@ export const ShopScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Theme.colors.background,
+    backgroundColor: '#1A1B26',
   },
-  topBar: {
+  header: {
+    paddingHorizontal: 20,
+    paddingTop: 10,
+    paddingBottom: 12,
+  },
+  backButton: {
+    marginBottom: 10,
+    paddingVertical: 4,
+    width: 70,
+  },
+  backButtonText: {
+    color: '#94A3B8',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  titleRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: Theme.spacing.lg,
-    paddingTop: Theme.spacing.sm,
-    marginBottom: 8,
   },
-  backButton: {
-    backgroundColor: Theme.colors.surface,
-    paddingHorizontal: Theme.spacing.md,
-    paddingVertical: Theme.spacing.xs,
-    borderRadius: Theme.borderRadius.sm,
+  title: {
+    fontSize: 22,
+    fontWeight: '800',
+    color: '#F8FAFC',
   },
-  backButtonText: {
-    color: Theme.colors.textPrimary,
-    fontWeight: '600',
-  },
-  coinContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#FEF3C7',
+  coinBadge: {
+    backgroundColor: '#24283B',
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 20,
     borderWidth: 1,
-    borderColor: '#F59E0B',
-    gap: 6,
+    borderColor: '#E0AF68',
   },
-  coinBadgeIcon: {
-    fontSize: 16,
+  coinText: {
+    color: '#E0AF68',
+    fontWeight: '700',
+    fontSize: 13,
   },
-  coinBadgeText: {
-    fontSize: 14,
-    fontWeight: 'bold',
-    color: '#B45309',
-  },
-  title: {
-    fontSize: 22,
-    fontWeight: 'bold',
-    color: Theme.colors.textPrimary,
-    paddingHorizontal: Theme.spacing.lg,
-    marginBottom: 14,
-  },
-  tabsContainer: {
+  filterRow: {
     flexDirection: 'row',
-    paddingHorizontal: Theme.spacing.lg,
+    paddingHorizontal: 20,
     gap: 8,
-    marginBottom: 16,
+    marginBottom: 12,
   },
-  tabButton: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: Theme.colors.surface,
-    paddingVertical: 10,
-    borderRadius: Theme.borderRadius.md,
+  filterChip: {
+    paddingHorizontal: 14,
+    paddingVertical: 6,
+    borderRadius: 12,
+    backgroundColor: '#24283B',
     borderWidth: 1,
-    borderColor: 'transparent',
-    gap: 6,
+    borderColor: '#414868',
   },
-  activeTabButton: {
-    borderColor: Theme.colors.primary,
-    backgroundColor: 'rgba(108, 92, 231, 0.08)',
+  filterChipActive: {
+    backgroundColor: '#7AA2F7',
+    borderColor: '#7AA2F7',
   },
-  tabEmoji: {
-    fontSize: 16,
-  },
-  tabLabel: {
+  filterChipText: {
+    color: '#94A3B8',
     fontSize: 12,
     fontWeight: '600',
-    color: Theme.colors.textSecondary,
   },
-  activeTabLabel: {
-    color: Theme.colors.primary,
-    fontWeight: 'bold',
+  filterChipTextActive: {
+    color: '#1A1B26',
+    fontWeight: '700',
   },
-  listContent: {
-    paddingHorizontal: Theme.spacing.lg,
-    paddingBottom: 24,
+  scrollList: {
+    paddingHorizontal: 20,
+    paddingBottom: 30,
   },
-  columnWrapper: {
+  grid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 12,
     justifyContent: 'space-between',
-    marginBottom: 12,
   },
   card: {
     width: '48%',
-    backgroundColor: Theme.colors.surface,
-    borderRadius: Theme.borderRadius.md,
-    padding: 12,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-    elevation: 2,
-    shadowColor: '#000',
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
-  },
-  cardOwned: {
-    borderColor: '#10B981',
-    backgroundColor: '#F0FDF4',
-  },
-  cardHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
+    backgroundColor: '#24283B',
+    borderRadius: 16,
+    padding: 14,
     alignItems: 'center',
-    marginBottom: 8,
+    borderWidth: 1.5,
+    borderColor: '#414868',
   },
   itemEmoji: {
-    fontSize: 32,
-  },
-  ownedBadge: {
-    backgroundColor: '#10B981',
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 6,
-  },
-  ownedBadgeText: {
-    fontSize: 9,
-    fontWeight: 'bold',
-    color: '#FFF',
+    fontSize: 38,
+    marginBottom: 6,
   },
   itemName: {
     fontSize: 14,
     fontWeight: '700',
-    color: Theme.colors.textPrimary,
+    color: '#FFFFFF',
+    textAlign: 'center',
     marginBottom: 4,
   },
-  itemDescription: {
-    fontSize: 11,
-    color: Theme.colors.textSecondary,
-    marginBottom: 12,
-    height: 30,
-  },
-  cardFooter: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginTop: 'auto',
+  itemDesc: {
+    fontSize: 10,
+    color: '#94A3B8',
+    textAlign: 'center',
+    marginBottom: 8,
+    height: 28,
   },
   priceRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-  },
-  coinIcon: {
-    fontSize: 14,
-  },
-  priceText: {
-    fontSize: 13,
-    fontWeight: 'bold',
-    color: Theme.colors.textPrimary,
-  },
-  buyButton: {
-    backgroundColor: Theme.colors.primary,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: Theme.borderRadius.sm,
-  },
-  buyButtonDisabled: {
-    backgroundColor: '#CBD5E1',
-  },
-  buyButtonText: {
-    color: '#FFF',
-    fontSize: 11,
-    fontWeight: '700',
-  },
-  ownedButton: {
-    backgroundColor: '#E2E8F0',
-    paddingHorizontal: 8,
-    paddingVertical: 6,
-    borderRadius: Theme.borderRadius.sm,
-  },
-  ownedButtonText: {
-    color: '#64748B',
-    fontSize: 10,
-    fontWeight: '600',
-  },
-  centerContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  loadingText: {
-    marginTop: 8,
-    color: Theme.colors.textSecondary,
-  },
-  emptyText: {
-    color: Theme.colors.textSecondary,
-    fontStyle: 'italic',
-  },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.5)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  modalContent: {
-    width: '82%',
-    backgroundColor: '#FFF',
-    borderRadius: Theme.borderRadius.lg,
-    padding: 20,
-    alignItems: 'center',
-  },
-  modalTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: Theme.colors.textPrimary,
     marginBottom: 10,
   },
-  modalMessage: {
-    fontSize: 14,
-    color: Theme.colors.textSecondary,
-    textAlign: 'center',
-    marginBottom: 16,
-  },
-  modalPriceRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#F8FAFC',
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 8,
-    marginBottom: 20,
-    gap: 8,
-  },
-  modalPriceLabel: {
+  priceText: {
+    color: '#E0AF68',
+    fontWeight: '700',
     fontSize: 13,
-    color: Theme.colors.textSecondary,
   },
-  modalPriceVal: {
-    fontSize: 15,
-    fontWeight: 'bold',
-    color: '#B45309',
-  },
-  modalActions: {
-    flexDirection: 'row',
-    gap: 12,
+  buyButton: {
+    backgroundColor: '#7AA2F7',
     width: '100%',
-  },
-  cancelBtn: {
-    flex: 1,
-    backgroundColor: '#F1F5F9',
-    paddingVertical: 10,
-    borderRadius: Theme.borderRadius.sm,
+    paddingVertical: 8,
+    borderRadius: 10,
     alignItems: 'center',
   },
-  cancelBtnText: {
-    color: Theme.colors.textSecondary,
-    fontWeight: '600',
+  ownedButton: {
+    backgroundColor: '#343B58',
   },
-  confirmBtn: {
-    flex: 1,
-    backgroundColor: Theme.colors.primary,
-    paddingVertical: 10,
-    borderRadius: Theme.borderRadius.sm,
-    alignItems: 'center',
+  buyButtonText: {
+    color: '#1A1B26',
+    fontWeight: '700',
+    fontSize: 12,
   },
-  confirmBtnText: {
-    color: '#FFF',
-    fontWeight: 'bold',
+  ownedButtonText: {
+    color: '#9ECE6A',
   },
 });

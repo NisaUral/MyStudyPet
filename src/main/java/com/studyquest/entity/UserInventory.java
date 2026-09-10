@@ -1,6 +1,6 @@
-package com.studyquest.model;
+package com.studyquest.entity;
 
-import com.studyquest.entity.User;
+
 import jakarta.persistence.*;
 import lombok.*;
 import java.time.Instant;
@@ -11,13 +11,15 @@ import com.studyquest.entity.ShopItem;
     name = "user_inventories",
     uniqueConstraints = {
         @UniqueConstraint(columnNames = {"user_id", "shop_item_id"})
+    },
+    indexes = {
+        @Index(name = "idx_user_inventory_user_id", columnList = "user_id")
     }
 )
 @Getter
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
-@Builder
 public class UserInventory {
 
     @Id

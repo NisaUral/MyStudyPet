@@ -1,41 +1,33 @@
-import apiClient from './client';
-
-export interface StudySessionResponse {
-  sessionId: number;
-  targetDurationMinutes: number;
-  actualDurationMinutes: number;
-  earnedCoins: number;
-  newTotalCoins?: number;
-  isCompleted: boolean;
-  startedAt: string;
-  endedAt?: string;
-  currentCoinBalance: number;
-}
-
+// src/api/studyApi.ts
 export const studyApi = {
-  // Seansı sunucuda başlat
-  startStudy: async (targetDurationMinutes: number): Promise<StudySessionResponse> => {
-    const res = await apiClient.post<StudySessionResponse>('/study/start', {
-      targetDurationMinutes,
+  // Seans başlatma (yerel simülasyon)
+  startStudy: async (minutes: number) => {
+    return Promise.resolve({ success: true, minutes });
+  },
+
+  // Seansı erken bitirme / pes etme
+  cancelStudy: async () => {
+    return Promise.resolve({
+      earnedCoins: 10,
+      actualDurationMinutes: 5,
+      isCompleted: false,
+      totalEarnedCoins: 10,
+      baseCoins: 10,
+      multiplier: 1.0,
+      currentStreak: 1,
     });
-    return res.data;
   },
 
-  // Süre bittiğinde oturumu tamamla
-  completeStudy: async (): Promise<StudySessionResponse> => {
-    const res = await apiClient.post<StudySessionResponse>('/study/complete');
-    return res.data;
-  },
-
-  // Erken sonlandır
-  cancelStudy: async (): Promise<StudySessionResponse> => {
-    const res = await apiClient.post<StudySessionResponse>('/study/cancel');
-    return res.data;
-  },
-
-  // Uygulama açılışında yarım kalan seans kontrolü
-  getActiveSession: async (): Promise<StudySessionResponse | null> => {
-    const res = await apiClient.get<StudySessionResponse | null>('/study/active');
-    return res.data;
+  // Seansı başarıyla tamamlama
+  completeStudy: async () => {
+    return Promise.resolve({
+      earnedCoins: 50,
+      actualDurationMinutes: 25,
+      isCompleted: true,
+      totalEarnedCoins: 50,
+      baseCoins: 40,
+      multiplier: 1.25,
+      currentStreak: 2,
+    });
   },
 };

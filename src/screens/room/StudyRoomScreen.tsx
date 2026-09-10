@@ -17,7 +17,6 @@ import { PetAvatar } from '../../components/PetAvatar';
 import { StudyDurationModal } from '../../components/study/StudyDurationModal';
 import { FocusOverlay } from '../../components/study/FocusOverlay';
 import { RewardModal } from '../../components/study/RewardModal';
-import { gridToScreen } from '../../utils/isometric';
 import { useLiveRoomStore } from '../../store/useLiveRoomStore';
 import { LiveRoommatesLayer } from '../../components/room/LiveRoommatesLayer';
 import { RoomStatsOverlay } from '../../components/room/RoomStatsOverlay';
@@ -55,9 +54,10 @@ export const StudyRoomScreen: React.FC<{ navigation: any }> = ({ navigation }) =
     lastReward,
     isRewardModalVisible,
     closeRewardModal,
+    tick, // <-- Eklendi: Sayacı akıtmak için gerekli
   } = useStudyStore();
 
-  // Tek ve birleşik useLiveRoomStore çağrısı
+  // Canlı oda aksiyonları
   const {
     joinLiveRoom,
     leaveLiveRoom,
@@ -87,12 +87,12 @@ export const StudyRoomScreen: React.FC<{ navigation: any }> = ({ navigation }) =
   const originX = SCREEN_WIDTH / 2;
   const originY = 80;
 
-  // 18. Gün: Pet Durum Makinesi
+  // Pet Durum Makinesi
   const { currentState: myPetState } = usePetStateMachine({
     isStudying: isFocusModeActive,
   });
 
-  // 20. Gün: Yürüme ve Fısıldama Kontrolcüleri (Erken return öncesinde tanımlandı)
+  // Yürüme ve Fısıldama Kontrolcüleri
   const {
     animX,
     animY,
@@ -115,6 +115,8 @@ export const StudyRoomScreen: React.FC<{ navigation: any }> = ({ navigation }) =
     roomCode: roomCode || '',
     myUsername: username || 'Misafir',
   });
+
+
 
   useEffect(() => {
     if (roomCode) {
@@ -156,6 +158,7 @@ export const StudyRoomScreen: React.FC<{ navigation: any }> = ({ navigation }) =
 
   const handleStartStudy = async (minutes: number) => {
     try {
+      setDurationModalVisible(false); // Modalı kapat
       setShowWardrobe(false);
       await startSession(minutes);
       if (roomCode && pet) {
@@ -270,14 +273,14 @@ export const StudyRoomScreen: React.FC<{ navigation: any }> = ({ navigation }) =
         <IsometricRoomView />
 
         <PlacedFurnitureLayer
-          furnitures={furnitures}
-          originX={originX}
-          originY={originY}
-        />
+        furnitures={furnitures as any}
+        originX={originX}
+        originY={originY}
+      />
 
         <LiveRoommatesLayer originX={originX} originY={originY} />
 
-        {/* Katman: Kullanıcının Kendi Peti (Artık doğru şekilde roomViewport içinde) */}
+        {/* Katman: Kullanıcının Kendi Peti */}
         {pet && (
           <Animated.View
             style={[
@@ -348,12 +351,13 @@ export const StudyRoomScreen: React.FC<{ navigation: any }> = ({ navigation }) =
           >
             <Text style={styles.btnEmoji}>{showWardrobe ? '✖' : '🎀'}</Text>
           </TouchableOpacity>
+
           <TouchableOpacity
-  style={styles.wardrobeToggleBtn}
-  onPress={() => setShowFurniturePlacement(true)}
->
-  <Text style={styles.btnEmoji}>🛋️</Text>
-</TouchableOpacity>
+            style={styles.wardrobeToggleBtn}
+            onPress={() => setShowFurniturePlacement(true)}
+          >
+            <Text style={styles.btnEmoji}>🛋️</Text>
+          </TouchableOpacity>
 
           <TouchableOpacity
             style={[styles.wardrobeToggleBtn, isBroadcasting && { opacity: 0.5 }]}
@@ -370,40 +374,44 @@ export const StudyRoomScreen: React.FC<{ navigation: any }> = ({ navigation }) =
             <Text style={styles.startStudyIcon}>⏳</Text>
             <Text style={styles.startStudyText}>Çalışmaya Başla</Text>
           </TouchableOpacity>
-          {/* StudyRoomScreen.tsx içindeki topBar sağına veya bottomBar'a: */}
-<TouchableOpacity
-  style={styles.wardrobeToggleBtn}
-  onPress={() => navigation.navigate('Shop')}
->
-  <Text style={styles.btnEmoji}>🛒</Text>
-</TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.wardrobeToggleBtn}
+            onPress={() => navigation.navigate('Shop')}
+          >
+            <Text style={styles.btnEmoji}>🛒</Text>
+          </TouchableOpacity>
         </View>
       )}
 
-
+      {/* Süre Seçim Modalı */}
       <StudyDurationModal
         visible={isDurationModalVisible}
         onClose={() => setDurationModalVisible(false)}
         onStart={handleStartStudy}
       />
 
+      {/* Odak Katmanı & Canlı Sayaç */}
       <FocusOverlay />
 
+      {/* Seans Tamamlama / Ödül Modalı */}
       <RewardModal
-  visible={isRewardModalVisible}
-  earnedCoins={lastReward?.totalEarnedCoins || lastReward?.earnedCoins || 0}
-  baseCoins={lastReward?.baseCoins || 0}
-  multiplier={lastReward?.multiplier || 1.0}
-  currentStreak={lastReward?.currentStreak || 1}
-  workedMinutes={lastReward?.actualDurationMinutes || 0}
-  isCompleted={lastReward?.isCompleted || false}
-  newlyUnlockedAchievements={lastReward?.newlyUnlockedAchievements || []}
-  onClose={handleCloseReward}
-/>
+        visible={isRewardModalVisible}
+        earnedCoins={lastReward?.totalEarnedCoins || lastReward?.earnedCoins || 0}
+        baseCoins={lastReward?.baseCoins || 0}
+        multiplier={lastReward?.multiplier || 1.0}
+        currentStreak={lastReward?.currentStreak || 1}
+        workedMinutes={lastReward?.actualDurationMinutes || 0}
+        isCompleted={lastReward?.isCompleted || false}
+        newlyUnlockedAchievements={lastReward?.newlyUnlockedAchievements || []}
+        onClose={handleCloseReward}
+      />
+
+      {/* Mobilya Yerleştirme Modalı */}
       <FurniturePlacementModal
-  visible={showFurniturePlacement}
-  onClose={() => setShowFurniturePlacement(false)}
-/>
+        visible={showFurniturePlacement}
+        onClose={() => setShowFurniturePlacement(false)}
+      />
     </SafeAreaView>
   );
 };
@@ -538,5 +546,4 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: 'bold',
   },
-  
 });

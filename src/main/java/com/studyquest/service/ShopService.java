@@ -3,13 +3,20 @@ package com.studyquest.service;
 import com.studyquest.dto.response.PurchaseResponseDTO;
 import com.studyquest.dto.response.ShopItemResponseDTO;
 import com.studyquest.exception.BadRequestException;
-import com.studyquest.model.*;
-import com.studyquest.repository.*;
+import com.studyquest.repository.ShopItemRepository;
+import com.studyquest.repository.UserInventoryRepository;
+import com.studyquest.repository.UserRepository;
+
+// Entity paketinden doğru ShopItem import edildi:
+import com.studyquest.entity.User;
+import com.studyquest.entity.ShopItem;
+import com.studyquest.entity.UserInventory;
+import com.studyquest.model.ItemCategory;
+
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import com.studyquest.entity.*;
 
 import java.time.Instant;
 import java.util.List;
@@ -34,11 +41,11 @@ public class ShopService {
                 .orElseThrow(() -> new BadRequestException("Kullanıcı bulunamadı"));
 
         List<ShopItem> items = (category != null)
-                ? shopItemRepository.findByCategoryAndIsAvailableTrue(category)
+                ? shopItemRepository.findByCategoryAndIsAvailableTrue(category.name())
                 : shopItemRepository.findByIsAvailableTrue();
 
         // Kullanıcının halihazırda sahip olduğu eşyaların ID kümesi
-        Set<Long> ownedItemIds = inventoryRepository.findByUserIdWithItem(user.getId())
+        Set<Long> ownedItemIds = inventoryRepository.findByUserIdWithShopItem(user.getId())
                 .stream()
                 .map(ui -> ui.getShopItem().getId())
                 .collect(Collectors.toSet());
@@ -48,13 +55,13 @@ public class ShopService {
                 .itemKey(item.getItemKey())
                 .name(item.getName())
                 .description(item.getDescription())
-                .category(item.getCategory())
+                .category(ItemCategory.valueOf(item.getCategory()))
                 .price(item.getPrice())
                 .iconUrl(item.getIconUrl())
                 .isOwned(ownedItemIds.contains(item.getId()))
                 .build()
         ).collect(Collectors.toList());
-    }
+    } // <-- EKSİK OLAN KAPATMA PARANTEZİ EKLENDİ
 
     /**
      * Eşya Satın Alma İşlemi (Atomic Transaction)
@@ -88,12 +95,12 @@ public class ShopService {
         user.setCoins(currentCoins - item.getPrice());
         userRepository.save(user);
 
-        // 4. Envantere ekle
-        UserInventory inventory = UserInventory.builder()
-                .user(user)
-                .shopItem(item)
-                .purchasedAt(Instant.now())
-                .build();
+        // 4. Envantere ekle (Saf Java Constructor)
+        UserInventory inventory = new UserInventory();
+        inventory.setUser(user);
+        inventory.setShopItem(item);
+        inventory.setPurchasedAt(Instant.now());
+
         inventoryRepository.save(inventory);
 
         log.info("[MAĞAZA] Kullanıcı: {} -> Ürün Satın Aldı: {} (Kalan Coin: {})",
@@ -110,23 +117,47 @@ public class ShopService {
     /**
      * Kullanıcının sahip olduğu tüm eşyaların listesi
      */
+   /**
+     * Kullanıcının sahip olduğu tüm eşyaların listesi
+     */
     @Transactional(readOnly = true)
     public List<ShopItemResponseDTO> getUserInventory(String username) {
         User user = userRepository.findByUsername(username)
                 .orElseThrow(() -> new BadRequestException("Kullanıcı bulunamadı"));
 
-        return inventoryRepository.findByUserIdWithItem(user.getId())
-                .stream()
-                .map(ui -> ShopItemResponseDTO.builder()
-                        .id(ui.getShopItem().getId())
-                        .itemKey(ui.getShopItem().getItemKey())
-                        .name(ui.getShopItem().getName())
-                        .description(ui.getShopItem().getDescription())
-                        .category(ui.getShopItem().getCategory())
-                        .price(ui.getShopItem().getPrice())
-                        .iconUrl(ui.getShopItem().getIconUrl())
-                        .isOwned(true)
-                        .build()
-                ).collect(Collectors.toList());
+        List<UserInventory> inventoryList = inventoryRepository.findByUserIdWithShopItem(user.getId());
+        List<ShopItemResponseDTO> responseList = new java.util.ArrayList<>();
+
+        for (UserInventory ui : inventoryList) {
+            ShopItem item = ui.getShopItem();
+            
+            // Kategori enum veya string kontrolü:
+            ItemCategory categoryEnum = null;
+            if (item.getCategory() != null) {
+                try {
+                    categoryEnum = ItemCategory.valueOf(item.getCategory());
+                } catch (IllegalArgumentException e) {
+                    // Veritabanındaki değer enum ile tam eşleşmezse null geçer
+                    categoryEnum = null;
+                }
+            }
+
+            ShopItemResponseDTO dto = ShopItemResponseDTO.builder()
+                    .id(item.getId())
+                    .itemKey(item.getItemKey())
+                    .name(item.getName())
+                    .description(item.getDescription())
+                    // Eğer DTO'da category String ise -> .category(item.getCategory())
+                    // Eğer DTO'da category ItemCategory ise -> .category(categoryEnum)
+                    .category(categoryEnum) 
+                    .price(item.getPrice())
+                    .iconUrl(item.getIconUrl())
+                    .isOwned(true)
+                    .build();
+
+            responseList.add(dto);
+        }
+
+        return responseList;
     }
 }

@@ -1,39 +1,47 @@
 import { create } from 'zustand';
-import { Pet } from '../types';
-import { petApi, UpdateAccessoriesPayload } from '../api/petApi';
+
+export interface PetData {
+  id: string;
+  name: string;
+  type: 'CAT' | 'DOG' | 'FISH';
+  equippedHat?: string | null;
+  equippedGlasses?: string | null;
+  equippedAccessory?: string | null;
+}
 
 interface PetState {
-  pet: Pet | null;
+  pet: PetData | null;
   isLoading: boolean;
-  setPet: (pet: Pet) => void;
   fetchMyPet: () => Promise<void>;
-  updateAccessories: (payload: UpdateAccessoriesPayload) => Promise<void>;
+  updateAccessories: (payload: any) => Promise<void>;
 }
 
 export const usePetStore = create<PetState>((set, get) => ({
-  pet: null,
+  pet: {
+    id: 'pet-1',
+    name: 'Pamuk',
+    type: 'CAT',
+    equippedHat: null,
+    equippedGlasses: null,
+    equippedAccessory: null,
+  },
   isLoading: false,
 
-  setPet: (pet: Pet) => set({ pet }),
-
   fetchMyPet: async () => {
-    set({ isLoading: true });
-    try {
-      const pet = await petApi.getMyPet();
-      set({ pet, isLoading: false });
-    } catch {
-      set({ isLoading: false });
-    }
+    // Network Error vermemesi için backend isteğini kaldırdık:
+    set({ isLoading: false });
   },
 
-  updateAccessories: async (payload: UpdateAccessoriesPayload) => {
-    set({ isLoading: true });
-    try {
-      const updated = await petApi.updateAccessories(payload);
-      set({ pet: updated, isLoading: false });
-    } catch (error) {
-      set({ isLoading: false });
-      throw error;
+  updateAccessories: async (payload: any) => {
+    const currentPet = get().pet;
+    if (currentPet) {
+      set({
+        pet: {
+          ...currentPet,
+          ...payload,
+        },
+      });
     }
+    return Promise.resolve();
   },
 }));

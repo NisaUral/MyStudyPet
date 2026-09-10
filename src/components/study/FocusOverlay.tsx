@@ -1,122 +1,215 @@
-import React, { useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Alert } from 'react-native';
-import { Theme } from '../../theme';
+import React, { useEffect, useRef, useState } from 'react';
+import {
+  View,
+  Text,
+  StyleSheet,
+  TouchableOpacity,
+  Alert,
+} from 'react-native';
 import { useStudyStore } from '../../store/useStudyStore';
+import { triggerHaptic } from '../../utils/haptics';
 
-interface Props {
-  onStopEarly?: () => void;
-}
+export const FocusOverlay: React.FC = () => {
+  const {
+    isFocusModeActive,
+    remainingSeconds,
+    tick,
+    stopSessionEarly,
+  } = useStudyStore();
 
-export const FocusOverlay: React.FC<Props> = ({ onStopEarly }) => {
-  const { status, remainingSeconds, isFocusModeActive, tick, stopSessionEarly } = useStudyStore();
+  const [isPaused, setIsPaused] = useState(false);
+  const timerRef = useRef<any>(null);
 
+  // Interval tekil yönetimi
   useEffect(() => {
-    let interval: ReturnType<typeof setInterval> | null = null;
-    if (status === 'RUNNING') {
-      interval = setInterval(() => {
+    if (isFocusModeActive && !isPaused) {
+      if (timerRef.current) clearInterval(timerRef.current);
+
+      timerRef.current = setInterval(() => {
         tick();
       }, 1000);
+    } else {
+      if (timerRef.current) {
+        clearInterval(timerRef.current);
+        timerRef.current = null;
+      }
     }
+
     return () => {
-      if (interval) clearInterval(interval);
+      if (timerRef.current) {
+        clearInterval(timerRef.current);
+        timerRef.current = null;
+      }
     };
-  }, [status]);
+  }, [isFocusModeActive, isPaused, tick]);
 
-  if (!isFocusModeActive) return null;
+  if (!isFocusModeActive) {
+    return null;
+  }
 
-  const minutes = Math.floor(remainingSeconds / 60);
-  const seconds = remainingSeconds % 60;
-  const formattedTime = `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+  const formatTime = (totalSeconds: number) => {
+    const mins = Math.floor(totalSeconds / 60);
+    const secs = totalSeconds % 60;
+    return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+  };
 
-  const handleStopPress = () => {
-    Alert.alert(
-      'Çalışmayı Sonlandır',
-      'Çalışma seansını erken bitirmek istediğine emin misin?',
-      [
-        { text: 'Devam Et', style: 'cancel' },
-        {
-          text: 'Bitir',
-          style: 'destructive',
-          onPress: async () => {
-            // Artık Promise bekleniyor ve modal store üzerinden otomatik açılıyor
-            await stopSessionEarly();
-            if (onStopEarly) {
-              onStopEarly();
-            }
-          },
-        },
-      ]
-    );
+  // Duraklat / Devam Et Tıklaması
+  const togglePause = () => {
+    try {
+      triggerHaptic.light();
+    } catch (e) {}
+    setIsPaused((prev) => !prev);
+  };
+
+  // Seansı Erken Bitir (Pes Et)
+  // Seansı Erken Bitir (Doğrudan ve garantili çağrı)
+  const handleFinishEarly = async () => {
+    try {
+      triggerHaptic.medium();
+    } catch (e) {}
+
+    // Sayacı temizle
+    if (timerRef.current) {
+      clearInterval(timerRef.current);
+      timerRef.current = null;
+    }
+    setIsPaused(false);
+
+    // Seansı sonlandır
+    try {
+      await stopSessionEarly();
+    } catch (err) {
+      console.error('[FocusOverlay] Bitirme hatası:', err);
+    }
   };
 
   return (
-    <View style={styles.backdrop} pointerEvents="box-none">
-      {/* Üst Kısım: Zamanlayıcı Rozeti */}
-      <View style={styles.timerBadge}>
-        <Text style={styles.timerLabel}>ODAK MODU</Text>
-        <Text style={styles.timerDigits}>{formattedTime}</Text>
-      </View>
+    <View style={styles.bottomContainer} pointerEvents="box-none">
+      <View style={styles.capsule}>
+        {/* Durum Noktası & Sayaç */}
+        <View style={styles.timerSection}>
+          <View
+            style={[
+              styles.indicatorDot,
+              isPaused && styles.indicatorDotPaused,
+            ]}
+          />
+          <Text style={styles.timerText}>{formatTime(remainingSeconds)}</Text>
+        </View>
 
-      {/* Alt Kısım: Erken Sonlandırma Butonu */}
-      <View style={styles.footer}>
-        <TouchableOpacity style={styles.earlyStopButton} onPress={handleStopPress}>
-          <Text style={styles.earlyStopText}>Çalışmayı Erken Sonlandır</Text>
-        </TouchableOpacity>
+        {/* Aksiyon Butonları */}
+        <View style={styles.actionsSection}>
+          {/* Duraklat / Devam Et Butonu */}
+          <TouchableOpacity
+            style={[styles.btn, isPaused ? styles.resumeBtn : styles.pauseBtn]}
+            activeOpacity={0.7}
+            onPress={togglePause}
+            hitSlop={{ top: 12, bottom: 12, left: 10, right: 10 }}
+          >
+            <Text style={[styles.btnText, isPaused ? styles.resumeText : styles.pauseText]}>
+              {isPaused ? '▶ Devam' : '⏸ Duraklat'}
+            </Text>
+          </TouchableOpacity>
+
+          {/* Seansı Bitir Butonu */}
+          <TouchableOpacity
+            style={[styles.btn, styles.stopBtn]}
+            activeOpacity={0.7}
+            onPress={handleFinishEarly}
+            hitSlop={{ top: 12, bottom: 12, left: 10, right: 10 }}
+          >
+            <Text style={[styles.btnText, styles.stopText]}>⏹ Bitir</Text>
+          </TouchableOpacity>
+        </View>
       </View>
     </View>
   );
 };
 
 const styles = StyleSheet.create({
-  backdrop: {
+  bottomContainer: {
     position: 'absolute',
-    top: 0,
+    bottom: 30, // Ekranın en altına hizalama
     left: 0,
     right: 0,
-    bottom: 0,
-    backgroundColor: 'rgba(15, 17, 26, 0.45)',
+    alignItems: 'center',
+    zIndex: 99999, // Dokunma önceliği garanti
+    elevation: 99,
+  },
+  capsule: {
+    flexDirection: 'row',
+    alignItems: 'center',
     justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingVertical: Theme.spacing.xl,
-    zIndex: 50,
+    backgroundColor: '#1E2233',
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: 24,
+    borderWidth: 1.5,
+    borderColor: '#7AA2F7',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.4,
+    shadowRadius: 10,
+    elevation: 12,
+    gap: 16,
   },
-  timerBadge: {
-    backgroundColor: Theme.colors.surface,
-    paddingHorizontal: Theme.spacing.lg,
-    paddingVertical: Theme.spacing.sm,
-    borderRadius: Theme.borderRadius.round,
+  timerSection: {
+    flexDirection: 'row',
     alignItems: 'center',
-    borderWidth: 1,
-    borderColor: Theme.colors.primary,
-    marginTop: 20,
+    gap: 8,
   },
-  timerLabel: {
-    fontSize: 10,
+  indicatorDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: '#9ECE6A', // Canlı yeşil (çalışıyor)
+  },
+  indicatorDotPaused: {
+    backgroundColor: '#E0AF68', // Turuncu/sarı (duraklatıldı)
+  },
+  timerText: {
+    color: '#F8FAFC',
+    fontSize: 20,
     fontWeight: '800',
-    color: Theme.colors.primary,
-    letterSpacing: 1.5,
-  },
-  timerDigits: {
-    fontSize: 32,
-    fontWeight: 'bold',
-    color: Theme.colors.textPrimary,
     fontVariant: ['tabular-nums'],
+    letterSpacing: 1,
   },
-  footer: {
-    width: '100%',
-    paddingHorizontal: Theme.spacing.xl,
-  },
-  earlyStopButton: {
-    backgroundColor: 'rgba(247, 118, 142, 0.2)',
-    borderWidth: 1,
-    borderColor: Theme.colors.danger,
-    paddingVertical: Theme.spacing.md,
-    borderRadius: Theme.borderRadius.md,
+  actionsSection: {
+    flexDirection: 'row',
     alignItems: 'center',
+    gap: 8,
   },
-  earlyStopText: {
-    color: Theme.colors.danger,
-    fontWeight: 'bold',
-    fontSize: 14,
+  btn: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 14,
+  },
+  btnText: {
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  pauseBtn: {
+    backgroundColor: '#24283B',
+    borderWidth: 1,
+    borderColor: '#414868',
+  },
+  pauseText: {
+    color: '#A9B1D6',
+  },
+  resumeBtn: {
+    backgroundColor: 'rgba(158, 206, 106, 0.2)',
+    borderWidth: 1,
+    borderColor: '#9ECE6A',
+  },
+  resumeText: {
+    color: '#9ECE6A',
+  },
+  stopBtn: {
+    backgroundColor: 'rgba(247, 118, 142, 0.15)',
+    borderWidth: 1,
+    borderColor: '#F7768E',
+  },
+  stopText: {
+    color: '#F7768E',
   },
 });

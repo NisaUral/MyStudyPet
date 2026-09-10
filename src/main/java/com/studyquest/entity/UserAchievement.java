@@ -3,12 +3,16 @@ package com.studyquest.entity;
 import jakarta.persistence.*;
 import lombok.*;
 import java.time.Instant;
+// DİKKAT: "import com.studyquest.model.AchievementType;" satırı SİLİNDİ!
 
 @Entity
 @Table(
     name = "user_achievements",
     uniqueConstraints = {
         @UniqueConstraint(columnNames = {"user_id", "achievement_type"})
+    },
+    indexes = {
+        @Index(name = "idx_user_achievement_user_id", columnList = "user_id")
     }
 )
 @Getter

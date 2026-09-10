@@ -9,6 +9,10 @@ import { WardrobeScreen } from './src/screens/wardrobe/WardrobeScreen';
 import { DashboardScreen } from './src/screens/dashboard/DashboardScreen';
 import { StudyRoomScreen } from './src/screens/room/StudyRoomScreen';
 
+// EKLENEN EKRANLAR:
+import { ShopScreen } from './src/screens/shop/ShopScreen';
+import { RoomChoiceScreen } from './src/screens/room/RoomChoiceScreen';
+
 const Stack = createNativeStackNavigator();
 
 export default function App() {
@@ -33,6 +37,10 @@ export default function App() {
         <Stack.Screen name="DashboardScreen" component={DashboardScreen} />
         <Stack.Screen name="WardrobeScreen" component={WardrobeScreen} />
         <Stack.Screen name="StudyRoomScreen" component={StudyRoomScreen} />
+
+        {/* HATAYI ÇÖZEN EKRAN TANIMLARI: */}
+        <Stack.Screen name="RoomChoiceScreen" component={RoomChoiceScreen} />
+        <Stack.Screen name="Shop" component={ShopScreen} />
       </Stack.Navigator>
     </NavigationContainer>
   );
